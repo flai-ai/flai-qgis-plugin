@@ -1,0 +1,610 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>FlaiCLIInterfaceDialogBase</class>
+ <widget class="QDialog" name="FlaiCLIInterfaceDialogBase">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>842</width>
+    <height>792</height>
+   </rect>
+  </property>
+  <property name="font">
+   <font>
+    <pointsize>11</pointsize>
+   </font>
+  </property>
+  <property name="windowTitle">
+   <string>Flai CLI plugin v0.2</string>
+  </property>
+  <widget class="QTabWidget" name="tabWidget">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>841</width>
+     <height>751</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>11</pointsize>
+    </font>
+   </property>
+   <property name="currentIndex">
+    <number>1</number>
+   </property>
+   <widget class="QWidget" name="tab_gettingStarted">
+    <attribute name="title">
+     <string>Getting started</string>
+    </attribute>
+    <widget class="QLabel" name="label_aboutCLIVersion">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>190</y>
+       <width>621</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>11</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>about CLI version</string>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::RichText</enum>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_aboutYourOrganization">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>220</y>
+       <width>621</width>
+       <height>21</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>11</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>about user's ORG</string>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::RichText</enum>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pshBtn_findFile">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>280</y>
+       <width>175</width>
+       <height>36</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>11</pointsize>
+      </font>
+     </property>
+     <property name="autoFillBackground">
+      <bool>false</bool>
+     </property>
+     <property name="text">
+      <string>Locate Flai CLI</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pshBtn_downloadFile">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>330</y>
+       <width>175</width>
+       <height>36</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>11</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Get Flai CLI</string>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pshBtn_reset">
+     <property name="geometry">
+      <rect>
+       <x>240</x>
+       <y>280</y>
+       <width>175</width>
+       <height>36</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>11</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Reset - inherit height of this button</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_logoFlai">
+     <property name="geometry">
+      <rect>
+       <x>32</x>
+       <y>30</y>
+       <width>211</width>
+       <height>111</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>9</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Adding image through resources.qrc
+and Designer was buggy - missing im
+port resources_rc. But adding it thro
+ugh python code did the trick.
+Use designer to customize label for 
+image but display it with python code.</string>
+     </property>
+     <property name="scaledContents">
+      <bool>true</bool>
+     </property>
+     <property name="wordWrap">
+      <bool>false</bool>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_wasCLIFound">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>160</y>
+       <width>721</width>
+       <height>81</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>11</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>was CLI found?, this label will be used to get font family</string>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::RichText</enum>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
+     </property>
+    </widget>
+    <zorder>label_wasCLIFound</zorder>
+    <zorder>label_aboutCLIVersion</zorder>
+    <zorder>label_aboutYourOrganization</zorder>
+    <zorder>pshBtn_findFile</zorder>
+    <zorder>pshBtn_downloadFile</zorder>
+    <zorder>pshBtn_reset</zorder>
+    <zorder>label_logoFlai</zorder>
+   </widget>
+   <widget class="QWidget" name="tab_processing">
+    <attribute name="title">
+     <string>Processing</string>
+    </attribute>
+    <widget class="QTabWidget" name="tabWidget_processing">
+     <property name="geometry">
+      <rect>
+       <x>10</x>
+       <y>10</y>
+       <width>817</width>
+       <height>711</height>
+      </rect>
+     </property>
+     <property name="currentIndex">
+      <number>0</number>
+     </property>
+     <widget class="QWidget" name="tab_settings_in_processing">
+      <attribute name="title">
+       <string>Settings</string>
+      </attribute>
+      <widget class="QGroupBox" name="groupBox">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>370</y>
+         <width>601</width>
+         <height>151</height>
+        </rect>
+       </property>
+       <property name="title">
+        <string>QGIS's Layers panel and data displaying behavior .</string>
+       </property>
+       <widget class="QWidget" name="verticalLayoutWidget">
+        <property name="geometry">
+         <rect>
+          <x>10</x>
+          <y>20</y>
+          <width>591</width>
+          <height>131</height>
+         </rect>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout">
+         <item>
+          <widget class="QRadioButton" name="radioBtn_noDisplay">
+           <property name="text">
+            <string>Do not display input and output data after complition of the flow</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="radioBtn_displayOnFinish">
+           <property name="text">
+            <string>Display input and output data after complition of the flow</string>
+           </property>
+           <property name="checked">
+            <bool>true</bool>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QRadioButton" name="radioBtn_diplayAsProcessingHappens">
+           <property name="text">
+            <string>Display input and output data for each successfully processed data </string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
+      </widget>
+      <widget class="QPushButton" name="pshBtn_createOrEdit">
+       <property name="geometry">
+        <rect>
+         <x>706</x>
+         <y>43</y>
+         <width>93</width>
+         <height>35</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Create / Edit</string>
+       </property>
+      </widget>
+      <widget class="QComboBox" name="cmbBx_measurementUnits">
+       <property name="geometry">
+        <rect>
+         <x>213</x>
+         <y>300</y>
+         <width>486</width>
+         <height>35</height>
+        </rect>
+       </property>
+       <property name="currentText">
+        <string/>
+       </property>
+       <property name="placeholderText">
+        <string/>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_commandInfo">
+       <property name="geometry">
+        <rect>
+         <x>30</x>
+         <y>550</y>
+         <width>211</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Command to be executed?</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pshBtn_selectOutput">
+       <property name="geometry">
+        <rect>
+         <x>214</x>
+         <y>214</y>
+         <width>486</width>
+         <height>36</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Open output path manager</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_mesurementUnits">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>300</y>
+         <width>141</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Measurement units</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_outputFolder">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>214</y>
+         <width>141</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Output folder(s)</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="warningLabel_outputFolder">
+       <property name="geometry">
+        <rect>
+         <x>214</x>
+         <y>190</y>
+         <width>581</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>TextLabel</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_flowTemplate">
+       <property name="geometry">
+        <rect>
+         <x>21</x>
+         <y>43</y>
+         <width>141</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Flow template</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pshBtn_showCommand">
+       <property name="geometry">
+        <rect>
+         <x>280</x>
+         <y>550</y>
+         <width>417</width>
+         <height>36</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Show me</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="warningLabel_flowTemplate">
+       <property name="geometry">
+        <rect>
+         <x>215</x>
+         <y>19</y>
+         <width>581</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>TextLabel</string>
+       </property>
+      </widget>
+      <widget class="QComboBox" name="cmbBx_flowTemplate">
+       <property name="geometry">
+        <rect>
+         <x>214</x>
+         <y>43</y>
+         <width>486</width>
+         <height>36</height>
+        </rect>
+       </property>
+       <property name="currentText">
+        <string/>
+       </property>
+       <property name="placeholderText">
+        <string/>
+       </property>
+      </widget>
+      <widget class="QLabel" name="warningLabel_inputFolder">
+       <property name="geometry">
+        <rect>
+         <x>214</x>
+         <y>101</y>
+         <width>581</width>
+         <height>21</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>TextLabel</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="warningLabel_measurementUnits">
+       <property name="geometry">
+        <rect>
+         <x>214</x>
+         <y>277</y>
+         <width>581</width>
+         <height>20</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>TextLabel</string>
+       </property>
+      </widget>
+      <widget class="QLabel" name="label_inputFolder">
+       <property name="geometry">
+        <rect>
+         <x>20</x>
+         <y>129</y>
+         <width>141</width>
+         <height>31</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Input folder(s)</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pshBtn_selectInput">
+       <property name="geometry">
+        <rect>
+         <x>214</x>
+         <y>125</y>
+         <width>486</width>
+         <height>36</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Open input path manager</string>
+       </property>
+      </widget>
+      <widget class="QPushButton" name="pshBtn_runFlow">
+       <property name="geometry">
+        <rect>
+         <x>522</x>
+         <y>620</y>
+         <width>175</width>
+         <height>36</height>
+        </rect>
+       </property>
+       <property name="text">
+        <string>Run flow</string>
+       </property>
+      </widget>
+     </widget>
+     <widget class="QWidget" name="tab_log_in_processing">
+      <attribute name="title">
+       <string>Logs</string>
+      </attribute>
+      <widget class="QPlainTextEdit" name="plainTextEdit_logs_processing">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>811</width>
+         <height>671</height>
+        </rect>
+       </property>
+       <property name="readOnly">
+        <bool>true</bool>
+       </property>
+      </widget>
+     </widget>
+    </widget>
+   </widget>
+   <widget class="QWidget" name="tab_datahub">
+    <attribute name="title">
+     <string>DataHub</string>
+    </attribute>
+    <widget class="QLabel" name="label_aboutDataHub">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>30</y>
+       <width>771</width>
+       <height>121</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;&lt;span style=&quot; font-weight:600;&quot;&gt;Coming Soon:&lt;/span&gt; Integrated DataHub Access&lt;br/&gt;&lt;br/&gt;Direct access to the Open Lidar DataHub is coming soon to the QGIS plugin!&lt;br/&gt;In the meantime, you can explore and download open LiDAR datasets at hub.flai.ai — the Open Lidar&lt;br&gt;DataHub by Flai.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+     </property>
+     <property name="textFormat">
+      <enum>Qt::RichText</enum>
+     </property>
+    </widget>
+    <widget class="QPushButton" name="pshBtn_redirectToWebDataHub">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>190</y>
+       <width>288</width>
+       <height>35</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>Take me to Lidar DataHub by Flai</string>
+     </property>
+    </widget>
+    <widget class="QLabel" name="label_datahub_background">
+     <property name="geometry">
+      <rect>
+       <x>0</x>
+       <y>0</y>
+       <width>841</width>
+       <height>721</height>
+      </rect>
+     </property>
+     <property name="text">
+      <string>this will be background image</string>
+     </property>
+    </widget>
+    <zorder>label_datahub_background</zorder>
+    <zorder>label_aboutDataHub</zorder>
+    <zorder>pshBtn_redirectToWebDataHub</zorder>
+   </widget>
+  </widget>
+  <widget class="QWidget" name="gridLayoutWidget">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>2</width>
+     <height>2</height>
+    </rect>
+   </property>
+   <layout class="QGridLayout" name="gridLayout"/>
+  </widget>
+  <widget class="QLabel" name="label_belowTab">
+   <property name="geometry">
+    <rect>
+     <x>10</x>
+     <y>760</y>
+     <width>241</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>11</pointsize>
+    </font>
+   </property>
+   <property name="text">
+    <string>Information about selected Flow</string>
+   </property>
+  </widget>
+  <widget class="QLabel" name="label_flowSummary">
+   <property name="geometry">
+    <rect>
+     <x>258</x>
+     <y>760</y>
+     <width>571</width>
+     <height>20</height>
+    </rect>
+   </property>
+   <property name="font">
+    <font>
+     <pointsize>11</pointsize>
+    </font>
+   </property>
+   <property name="text">
+    <string>Lorem ipsum</string>
+   </property>
+   <property name="alignment">
+    <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+   </property>
+  </widget>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>
