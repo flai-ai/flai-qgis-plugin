@@ -33,22 +33,17 @@ To run the Flai CLI interface, follow these steps:
 4. Have fun!
 
 
-## License
-
-The project is licensed under the GNU GPLv3 license.
-
 ## Known issues and limitations
 
-### As a user, I cannot change the CLI version that the plugin uses (the CLI has already been selected).
+### I think something is wrong with settings file. Where can i find it and edit it?
 
-Manual edit .settings.ini file, you need to delete line `cli-path` or whole file (if deleting whole file, QGIS needs to be closed otherwise some variables can be remembered from before).
+Our setting file is called `.settings.ini` file and it can be found in plugin's folder. If you decide to deleting whole file, QGIS needs to be closed otherwise some variables can be remembered from before. Below will be commands which will open it in a editor on your system. 
 
 - Windows: 
   - CMD: `notepad %APPDATA%\QGIS\QGIS3\profiles\default\python\plugins\flai_cli_interface\.settings.ini`
   - Powershell: `notepad $HOME\AppData\Roaming\QGIS\QGIS3\profiles\default\python\plugins\flai_cli_interface\.settings.ini`
     
 - Linux:
-
    - Gnome (Ubuntu): `gnome-text-editor $HOME/.local/share/QGIS/QGIS3/profiles/default/python/plugins/flai-cli-interface/.settings.ini`
    - KDE: `kate $HOME/.local/share/QGIS/QGIS3/profiles/default/python/plugins/flai-cli-interface/.settings.ini`
    - VS Code: `code $HOME/.local/share/QGIS/QGIS3/profiles/default/python/plugins/flai-cli-interface/.settings.ini`
@@ -57,6 +52,7 @@ Manual edit .settings.ini file, you need to delete line `cli-path` or whole file
      - Nano: `nano $HOME/.local/share/QGIS/QGIS3/profiles/default/python/plugins/flai-cli-interface/.settings.ini`
      - Vim: `vim $HOME/.local/share/QGIS/QGIS3/profiles/default/python/plugins/flai-cli-interface/.settings.ini`
 
-### In some parts of UI/UX text artifacts can appear.
 
-The text will be cleaned in the next release. It appears that some characters were corrupted during the copying process.
+## License
+
+The project is licensed under the GNU GPLv3 license.
