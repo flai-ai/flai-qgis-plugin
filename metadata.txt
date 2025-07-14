@@ -6,7 +6,7 @@
 name=Flai CLI Interface
 qgisMinimumVersion=3.0
 description=This plugin provides GUI control over FLAI CLI and easy access to Flai's DataHub.
-version=0.2
+version=0.3
 author=Flai d.o.o
 email=vid.tk@flai.ai
 
