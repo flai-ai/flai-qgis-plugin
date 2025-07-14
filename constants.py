@@ -6,7 +6,7 @@ OUTPUT_PATH_MANAGER_DEFAULT_VALUE_MESSAGE = "Output paths have been automaticall
 
 
 # globals
-DATETIME_PLACEHOLDER = 'current-datetime'
+DATETIME_PLACEHOLDER = 'current-date/current-time'
 
 TIMEOUT_TIME_IN_SECONDS = 15
 
@@ -24,6 +24,13 @@ POSSIBLE_NODE_KEY_MODEL_ID  = 'ai_model_id'
 SYSTEM_MACOS   = 'Darwin'
 SYSTEM_LINUX   = 'Linux'
 SYSTEM_WINDOWS = 'Windows'
+
+
+# hidden settings related
+HIDDEN_SETTING_FIELD_CLI_PATH = 'cli-path'
+HIDDEN_SETTING_FIELD_MEASUREMENTS = 'measurement-unit'
+HIDDEN_SETTING_FIELD_SHOW_WELCOME_WARNING = 'is-welcome-warning-disabled'
+HIDDEN_SETTING_FIELD_DISPLAYING_INPUT_AND_OUTPUT_BEHAVIOR = 'displaying-input-and-output-behavior'
 
 
 # GUI related
