@@ -122,9 +122,10 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         # warning about closing the gui but not killing the running process, it will still run in background (only button Reset and entry from dropdown Hard reset will kill running flow)
 
         # setting up "Getting started" tab, this vars do not need to be in `reset_ui_and_variables(...)` function
-        self.pshBtn_reset.setText('Reset')
+        self.pshBtn_resetUI.setText('Reset UI')
         self.pshBtn_findFile.clicked.connect(self._select_cli)
-        self.pshBtn_reset.clicked.connect(self._reset_ui_and_variables)
+        self.pshBtn_resetUI.clicked.connect(self._reset_ui_and_variables)
+        self.pshBtn_resetCLIPath.clicked.connect(self._reset_cli_path)
         self.pshBtn_downloadFile.clicked.connect(self._get_cli_link)
 
         # setting up "Processing" tab, this vars do not need to be in `reset_ui_and_variables(...)` function
@@ -172,53 +173,10 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         self._reset_ui_and_variables()
         self._choose_focus_tab()
 
-        # install flai-sdk if missing
-        try:
-            self._load_flai_sdk()
-        except ImportError:
-            # --- build the one-and-only dialog ---
-            self._installDialog = QDialog(self)
-            self._installDialog.setWindowTitle("Flai CLI interface - missing dependency")
-            # 4) make it bigger up front
-            self._installDialog.resize(600, 250)
-
-            # 2) apply font-size to everything in one go
-            self._installDialog.setStyleSheet(
-                f"* {{ font-size: {TEXT_SIZE_INSIDE_MSG_BOX}pt; }}"
-            )
-            layout = QVBoxLayout(self._installDialog)
-
-            # 1) Prompt label
-            self._promptLabel = QLabel(
-                "The Python package <b>flai-sdk</b> is not installed.",
-                self._installDialog
-            )
-            layout.addWidget(self._promptLabel)
-
-            # 2) Buttons
-            btn_layout = QHBoxLayout()
-            self._installBtn = QPushButton("Install flai-sdk", self._installDialog)
-            self._cancelBtn  = QPushButton("Close plugin",   self._installDialog)
-            btn_layout.addWidget(self._installBtn)
-            btn_layout.addWidget(self._cancelBtn)
-            layout.addLayout(btn_layout)
-
-            # 3) Hidden log console
-            self._installer_log = QPlainTextEdit(self._installDialog)
-            self._installer_log.setReadOnly(True)
-            self._installer_log.hide()
-            layout.addWidget(self._installer_log)
-
-            # Connections
-            self._installBtn.clicked.connect(self._on_install_clicked)
-            self._cancelBtn.clicked.connect(self._installDialog.reject)
-
-            self._installDialog.exec_()
-
 
     def _on_install_clicked(self):
         # swap UI into â€œinstallingâ€ mode
-        self._promptLabel.setText("Installing flai-sdkâ€¦ please wait.")
+        self._promptLabel.setText("Installing flai-sdk, please wait...")
         self._installBtn.setEnabled(False)
         self._cancelBtn.setEnabled(False)
         self._installer_log.show()
@@ -227,20 +185,22 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         importlib.invalidate_caches()
 
         # launch pip
-        prog = sys.executable
-        # args = ["-m", "pip", "install", "flai-sdk"]                                                                                                             # production PyPI
-        args = ["-m", "pip", "install", "--index-url", "https://test.pypi.org/simple/", "--extra-index-url", "https://pypi.org/simple", "flai-sdk==0.0.3"]    # testing PyPI
-        full_cmd = f"{prog} {' '.join(args)}"
+        # base_args = ["-m", "pip", "install", "flai-sdk"]                                                                                                             # production PyPI
+        base_args = ["-m", "pip", "install", "--index-url", "https://test.pypi.org/simple/", "--extra-index-url",
+                     "https://pypi.org/simple", "flai-sdk==0.0.3"]  # testing PyPI
 
-        self._running_flow_process.setProgram(prog)
-        self._running_flow_process.setArguments(args)
+        if self._current_system == SYSTEM_WINDOWS:
+            # find real python.exe (or pip.exe wrapper)…
+            program = os.path.join(os.path.dirname(sys.executable), "python.exe")
+        else:
+            program = sys.executable
 
-        self._installer_log.appendHtml(f"<b>Running command</b>: {full_cmd}<br>")
+        self._installer_log.appendHtml(f"<b>Running command</b>: {program} {' '.join(base_args)}<br>")
 
         self._running_flow_process.readyReadStandardOutput.connect(self._installer_log_append_stdout)
         self._running_flow_process.readyReadStandardError.connect(self._installer_log_append_stderr)
         self._running_flow_process.finished.connect(self._on_install_finished)
-        self._running_flow_process.start()
+        self._running_flow_process.start(program, base_args)
 
 
     def _installer_log_append_stdout(self):
@@ -258,10 +218,10 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def _on_install_finished(self, exit_code, exit_status):
         if exit_code == 0:
-            self._promptLabel.setText("âœ” flai-sdk installed successfully. No need to restart QGIS.")
+            self._promptLabel.setText("flai-sdk installed successfully. No need to restart QGIS.")
         else:
             self._promptLabel.setText(
-                f"âœ˜ Installation failed (exit code {exit_code}). "
+                f"Installation failed (exit code {exit_code}). "
             )
         # repurpose Cancel into a Close button now that weâ€™re done
         self._cancelBtn.setEnabled(True)
@@ -324,14 +284,75 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             # unify font
             msg_box.setFont(self._font_inside_msg_box)
 
-            msg_box.exec_()
+            result = msg_box.exec_()
+
+            if result != QDialog.Accepted:
+                return
 
             # after the dialog is closed, we can check the state of the checkbox
             checkbox_value = self.checkbox.isChecked()
 
             if self._is_show_welcome_warning_disabled != checkbox_value:
-                self._settings.setValue('is-welcome-warning-disabled', int(checkbox_value))
+                self._settings.setValue(HIDDEN_SETTING_FIELD_SHOW_WELCOME_WARNING, int(checkbox_value))
                 self._is_show_welcome_warning_disabled = checkbox_value
+
+        # install flai-sdk if missing
+        try:
+            self._load_flai_sdk()
+        except ImportError:
+            # --- build the one-and-only dialog ---
+            self._installDialog = QDialog(self)
+            self._installDialog.setWindowTitle("Flai CLI interface - missing dependency")
+            # 4) make it bigger up front
+            self._installDialog.resize(600, 250)
+
+            # 2) apply font-size to everything in one go
+            self._installDialog.setStyleSheet(
+                f"* {{ font-size: {TEXT_SIZE_INSIDE_MSG_BOX}pt; }}"
+            )
+            layout = QVBoxLayout(self._installDialog)
+
+            # 1) Prompt label
+            self._promptLabel = QLabel(
+                "The Python package <b>flai-sdk</b> is not installed.",
+                self._installDialog
+            )
+
+            self._installDialog.setWindowFlags(
+                  Qt.Dialog
+                | Qt.CustomizeWindowHint
+                | Qt.WindowTitleHint
+            )
+
+            layout.addWidget(self._promptLabel)
+
+            # 2) Buttons
+            btn_layout = QHBoxLayout()
+            self._installBtn = QPushButton("Install flai-sdk", self._installDialog)
+            self._cancelBtn  = QPushButton("Close plugin",   self._installDialog)
+            btn_layout.addWidget(self._installBtn)
+            btn_layout.addWidget(self._cancelBtn)
+            layout.addLayout(btn_layout)
+
+            # 3) Hidden log console
+            self._installer_log = QPlainTextEdit(self._installDialog)
+            self._installer_log.setReadOnly(True)
+            self._installer_log.hide()
+            layout.addWidget(self._installer_log)
+
+            # Connections
+            self._installBtn.clicked.connect(self._on_install_clicked)
+            self._cancelBtn.clicked.connect(lambda: (setattr(self._installDialog, "_cancel_clicked", True) or self._installDialog.reject()))
+
+            self._installDialog.exec_()
+
+            # super nasty solution
+            # should not show our dialog if our sdk was not installed and user clicked `Close plugin` button
+            try:
+                import flai_sdk
+            except ImportError:
+                if self._installDialog._cancel_clicked:
+                    return
 
         # Call the base class's show method to actually display the dialog
         super().show()
@@ -400,6 +421,12 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             )
 
 
+    def _reset_cli_path(self):
+        self._settings.remove(HIDDEN_SETTING_FIELD_CLI_PATH)
+        self._settings.sync();              # forces an immediate write
+        self._reset_ui_and_variables()
+
+
     def _reset_ui_and_variables(self):
         self._cli_path    = ''
         self._cli_version = ''
@@ -420,7 +447,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         # setting up "Getting started" tab
         self.label_wasCLIFound.setText(
             '<strong>Flai CLI not found.</strong><br>' +
-            'The Processing tab is disabled because the Flai CLI isnâ€™t installed or configured on this system.<br><br>' +
+            'The Processing tab is disabled because the Flai CLI is not installed or configured on this system.<br><br>' +
             'Please install the Flai CLI and then click the button below to locate its executable.'
         )
         self.label_aboutCLIVersion.setText('')
@@ -437,8 +464,8 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         
         self.cmbBx_measurementUnits.setCurrentIndex(0)  # setting default value for mesurement units
         
-        if self._settings.contains('measurement-unit'):  # preload_measurement unit from settings file
-            saved_measurement_unit = self._settings.value('measurement-unit')
+        if self._settings.contains(HIDDEN_SETTING_FIELD_MEASUREMENTS):  # preload_measurement unit from settings file
+            saved_measurement_unit = self._settings.value(HIDDEN_SETTING_FIELD_MEASUREMENTS)
 
             idx = self.cmbBx_measurementUnits.findText(
                 saved_measurement_unit, 
@@ -466,12 +493,12 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         elif self.radioBtn_diplayAsProcessingHappens.isChecked():
             saving_type = DATA_DISPLAYING_BEHAVIOR_REALTIME
 
-        self._settings.setValue('displaying-input-and-output-behavior', saving_type)
+        self._settings.setValue(HIDDEN_SETTING_FIELD_DISPLAYING_INPUT_AND_OUTPUT_BEHAVIOR, saving_type)
 
 
     def _get_displaying_input_and_output_behavior(self):
-        if self._settings.contains('displaying-input-and-output-behavior'):
-            saved_displaying_input_and_output_behavior = self._settings.value('displaying-input-and-output-behavior')
+        if self._settings.contains(HIDDEN_SETTING_FIELD_DISPLAYING_INPUT_AND_OUTPUT_BEHAVIOR):
+            saved_displaying_input_and_output_behavior = self._settings.value(HIDDEN_SETTING_FIELD_DISPLAYING_INPUT_AND_OUTPUT_BEHAVIOR)
 
             if saved_displaying_input_and_output_behavior == DATA_DISPLAYING_BEHAVIOR_NON:
                 self.radioBtn_noDisplay.setChecked(True)
@@ -559,7 +586,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             window_title      = window_title,
             given_types       = required_types, 
             font_reference    = self._font_inside_msg_box,
-            btn_reference     = self.pshBtn_reset,
+            btn_reference     = self.pshBtn_resetUI,
             remebered_paths   = self._input_manager_paths if button_object_name == self.pshBtn_selectInput else self._output_manager_paths,
             is_output_manager = True if button_object_name == self.pshBtn_selectOutput else False
         )
@@ -599,7 +626,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
 
     @pyqtSlot(bool)
     def _update_show_command_button(self, _=None):
-        # we ignore the boolean payload â€“ we only care about the four attrs
+        # we ignore the boolean payload - we only care about the four attrs
         enable_button_if_all_true = all((
             self._is_flow_template_selected, 
             self._are_output_paths_ok, 
@@ -624,7 +651,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
                 raw = future.result(timeout=TIMEOUT_TIME_IN_SECONDS)
                 self.flow_id_with_local_io = raw["flow_id"] 
             except concurrent.futures.TimeoutError:
-                # still running after TIMEOUT_TIME_IN_SECONDS â†’ cancel & fallback
+                # still running after TIMEOUT_TIME_IN_SECONDS -> cancel & fallback
                 future.cancel()
                 self.show_generic_sdk_warning(message=TIMEOUT_ERROR)
                 return
@@ -670,7 +697,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
                         semantic_schema = future.result(timeout=TIMEOUT_TIME_IN_SECONDS)
                         self._output_pc_semantic_schema = self._parse_semantic_schema(semantic_schema)
                     except concurrent.futures.TimeoutError:
-                        # still running after TIMEOUT_TIME_IN_SECONDS â†’ cancel & fallback
+                        # still running after TIMEOUT_TIME_IN_SECONDS -> cancel & fallback
                         future.cancel()
                         self.show_generic_sdk_warning(message=TIMEOUT_ERROR)
                         return
@@ -690,7 +717,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
                         semantic_schema = future.result(timeout=TIMEOUT_TIME_IN_SECONDS)
                         self._output_pc_semantic_schema = self._parse_semantic_schema(semantic_schema)
                     except concurrent.futures.TimeoutError:
-                        # still running after TIMEOUT_TIME_IN_SECONDS s â†’ cancel & fallback
+                        # still running after TIMEOUT_TIME_IN_SECONDS s -> cancel & fallback
                         future.cancel()
                         self.show_generic_sdk_warning(message=TIMEOUT_ERROR)
                         return
@@ -730,7 +757,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         """
         Handles both:
         1. Toggling Create/Edit button text based on whether
-           the user picked â€œNon selectedâ€ (index 0) or something else.
+           the user picked "Non selected" (index 0) or something else.
         2. Enabling/disabling the other three buttons and updating
            the warning label whenever the selection changes.
         """
@@ -821,7 +848,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             return ''
         
         except concurrent.futures.TimeoutError:
-            # still running after TIMEOUT_TIME_IN_SECONDS â†’ cancel & fallback
+            # still running after TIMEOUT_TIME_IN_SECONDS -> cancel & fallback
             future.cancel()
             self.show_generic_sdk_warning(message=TIMEOUT_ERROR)
             return
@@ -912,13 +939,13 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         else:
             self.are_measurement_units_ok = True
             self.warningLabel_measurementUnits.setText('')
-            self._settings.setValue('measurement-unit', self.cmbBx_measurementUnits.currentText())
+            self._settings.setValue(HIDDEN_SETTING_FIELD_MEASUREMENTS, self.cmbBx_measurementUnits.currentText())
 
             
     def _show_executable_command(self):
         command_with_args = self._get_executable_command()[0]
 
-        # if value contains any whitespace, wrap it in doubleâ€quotes
+        # if value contains any whitespace, wrap it in double-quotes
         program_location = f'"{command_with_args[0]}"' if self._whitespace_regex.search(command_with_args[0]) else command_with_args[0]
         
         # windows specific command
@@ -935,7 +962,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
 
         # every subsequent pair: flag + value
         for flag, val in zip(command_with_args[1::2], command_with_args[2::2]):
-            arg = f'"{val}"' if self._whitespace_regex.search(val) else val    # if value contains any whitespace, wrap it in doubleâ€quotes
+            arg = f'"{val}"' if self._whitespace_regex.search(val) else val    # if value contains any whitespace, wrap it in double-quotes
             lines.append(f'      {flag} {arg} \\')
         
         # strip the trailing backslash from the last line
@@ -958,7 +985,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
     def _get_executable_command(self):
         # parse string DATETIME_PLACEHOLDER if in self.output_manager_paths
         current_datetime = datetime.now()
-        str_current_datetime = current_datetime.strftime("%Y.%m.%d - %H.%M.%S") # cannot use %H:%M:%S, otherwise windows complains
+        str_current_datetime = current_datetime.strftime(f"%Y.%m.%d{os.sep}%H.%M.%S") # cannot use %H:%M:%S, otherwise windows complains
 
         # needed for later processing, cleanup of DATETIME_PLACEHOLDER
         local_output_type_and_folder = {
@@ -1007,25 +1034,25 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
     def _parse_windows_path(self, path):
         # normalize *any* backslashes, for example `\\\\wsl.localhost\\Ubuntu\\home\\alice\\file.txt`
         if '\\' in path:
-            # 1) Leading \\â€¦  â†’ //
-            #    - r"^\\\\+"            â†’ match two or more backslashes at the start
+            # 1) Leading \\…            -> //
+            #    - r"^\\\\+"            -> match two or more backslashes at the start
             #    - replace with "//"
-            # 2) Any remaining \ â†’ /
+            # 2) Any remaining \        -> /
             path = re.sub(r"^\\\\+", "//", path).replace("\\", "/")
 
         path_located_inside_wsl_pattern = re.compile(r"^//wsl[^/]+/[^/]+(/.*)$")
-        # ^//wsl    â†’ only if the string starts with //wsl
-        # [^/]+/    â†’ match the rest of the server name (e.g. .localhost or IP) plus a slash
-        # [^/]+     â†’ consume the distro name (Ubuntu, Debian, etc.)
-        # (/.*)$    â†’ capture the slash plus everything after (our â€œrealâ€ path)
+        # ^//wsl    -> only if the string starts with //wsl
+        # [^/]+/    -> match the rest of the server name (e.g. .localhost or IP) plus a slash
+        # [^/]+     -> consume the distro name (Ubuntu, Debian, etc.)
+        # (/.*)$    -> capture the slash plus everything after (our "real" path)
         m = path_located_inside_wsl_pattern.match(path)
         if m:
             path = m.group(1)
 
         windows_drive_pattern = re.compile(r'^([A-Za-z]):/(.*)$')
-        # ^([A-Za-z])  â†’ capture one ASCII letter (drive letter Aâ€“Z or aâ€“z), sometime it could be lower case (redundant but just in case)
-        # :/           â†’ literal colon then forwardâ€slash
-        # (.*)$        â†’ capture the rest of the string (zero or more characters)
+        # ^([A-Za-z])  -> capture one ASCII letter (drive letter A-Z or a-z), sometime it could be lower case (redundant but just in case)
+        # :/           -> literal colon then forward‐slash
+        # (.*)$        -> capture the rest of the string (zero or more characters)
         m = windows_drive_pattern.match(path)
         if m:
             drive = m.group(1).lower()
@@ -1072,7 +1099,9 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             "Before we run the given command, make sure everything is set as expected flow-wise "
             "since costs can occur on your side." \
             "\n\n" \
-            "TIPS AND TRICKS: On tab Logs you can see what is happening. At bottom right corner you can see lastest line output from CLI."
+            "TIPS AND TRICKS:" \
+            "\n - on tab Logs you can see what is happening (you will be automatically redirected to it)." \
+            "\n - at bottom right corner you can see latest line output from CLI."
         )
         # remove any default buttons:
         msg.setStandardButtons(QtWidgets.QMessageBox.NoButton)
@@ -1096,6 +1125,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             self.pshBtn_selectOutput.setEnabled(False)
             self.cmbBx_measurementUnits.setEnabled(False)
             self.groupBox.setEnabled(False)
+            self.pshBtn_runFlow.setEnabled(False)
 
             # force immediate update otherwise disabling of UI will not happen before executing the code below
             QtWidgets.QApplication.processEvents()
@@ -1109,13 +1139,13 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
 
             # setting up windows specific command
             if self._current_system == SYSTEM_WINDOWS:
-                self.executing_command = [
+                self._executing_command = [
                     'wsl', 
                     self._windows_flai_access_token, 
                     self._windows_flai_host
-                ] + self.executing_command
+                ] + self._executing_command
 
-            # create the layerâ€tree structure, where paths / files will be grouped
+            # create the layer-tree structure, where paths / files will be grouped
             # for option where we do not display anything we do not need to be calls this
             if self._data_displaying_behavior != 0:
                 self._setup_layer_tree()
@@ -1146,7 +1176,6 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             if not self.plainTextEdit_logs_processing.document().isEmpty():
                 self.plainTextEdit_logs_processing.appendPlainText('\n\n')
 
-            # self.plainTextEdit_logs_processing.appendPlainText(f'Running command: {parsed_cmd}\n')
             self.plainTextEdit_logs_processing.appendHtml(f'<b>Running command:</b> {parsed_cmd}<br>')
             self.label_flowSummary.setText('Launching CLI...')
             
@@ -1162,11 +1191,18 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             program, *args = self._executing_command
             self._proc.start(program, args)
 
+            # for nicer transition
+            QTimer.singleShot(1200, 
+                              lambda: self.tabWidget_processing.setCurrentIndex(
+                                  self.tabWidget_processing.indexOf(self.tab_log_in_processing)
+                              )
+            )
+
 
     def _start_polling_output_folders_watcher(self, paths, callback, interval=1.0):
         """
         paths:    iterable of directory paths
-        callback: fn(dirpath) â€” e.g. self._on_directory_changed
+        callback: fn(dirpath) - e.g. self._on_directory_changed
         interval: seconds between polls
         returns:  (stop_event, thread)
         """
@@ -1198,7 +1234,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def _on_finished(self, exitCode, exitStatus):
         out = f"\n Process finished with exit code {exitCode}"
-        # out += ' (' + f'âŒ' if exitCode != 0 else f'âœ…' + ')'
+        # out += ' (' + f'❌' if exitCode != 0 else f'✅' + ')'
         self.plainTextEdit_logs_processing.appendPlainText(out)
 
         # load files when flow finishes
@@ -1223,8 +1259,9 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         self.pshBtn_selectOutput.setEnabled(True)
         self.cmbBx_measurementUnits.setEnabled(True)
         self.groupBox.setEnabled(True)
+        self.pshBtn_runFlow.setEnabled(True)
 
-        self.label_flowSummary.setText('processing ended (Ë¶áµ” áµ• áµ”Ë¶)')
+        self.label_flowSummary.setText('processing ended (˶ᵔ ᵕ ᵔ˶)')
         QTimer.singleShot(5000, lambda: self.label_flowSummary.clear()) # in ms, non blocking
 
         # force immediate update just in case
@@ -1283,11 +1320,11 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         self.grp_in  = self._get_or_create_group(root, 'input')
         self.grp_out = self._get_or_create_group(root, 'output')
 
-        # make one subgroup under input per readerâ€flag
+        # make one subgroup under input per reader-flag
         for flag in self._local_input_type_and_files:
             self._get_or_create_group(self.grp_in, self._safe_name(flag))
 
-        # make one subgroup under output per writerâ€flag
+        # make one subgroup under output per writer-flag
         for flag in self._local_output_type_and_folder:
             self._get_or_create_group(self.grp_out, self._safe_name(flag))
 
@@ -1304,7 +1341,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             return QgsRasterLayer(path, bn, 'gdal')
         
         if ext.endswith(('.las','.laz', '.copc.laz')):
-            # create the pointâ€cloud layer without loading any default style
+            # create the point-cloud layer without loading any default style
             # opts = QgsPointCloudLayer.LayerOptions()      # tune this to get the same behavior as drag and drop .la? in QGIS?
             # # opts.loadDefaultStyle = False
 
@@ -1338,11 +1375,11 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
                 )
 
             # build a classified renderer on the 'Classification' attribute and add it to layer
-            # 4. Swap in only your new categories
+            # swap in only your new categories
             renderer.setAttribute("Classification")            # make sure we're on the right field
             renderer.setCategories(categories)                 # replaces just the Classification classes
 
-            # 5. Refresh
+            # refresh
             layer.triggerRepaint()
             return layer
         
@@ -1357,7 +1394,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
 
 
     def _load_input_layers(self):
-        """Load all pre-existing reader files into 'input' â†’ flag groups."""
+        """Load all pre-existing reader files into 'input' -> flag groups."""
         for flag, paths in self._local_input_type_and_files.items():
             grp = self.grp_in.findGroup(self._safe_name(flag))
             for p in paths:
@@ -1426,9 +1463,8 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
 
     def _select_cli(self):
         # get path of user's "installed" CLI
-        # something is off !!!!
-        if self._settings.contains('cli-path'):
-            file_path = self._settings.value('cli-path')
+        if self._settings.contains(HIDDEN_SETTING_FIELD_CLI_PATH):
+            file_path = self._settings.value(HIDDEN_SETTING_FIELD_CLI_PATH)
         else:
             file_path, _ = QtWidgets.QFileDialog.getOpenFileName(
                 self,
@@ -1460,7 +1496,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         self._cli_path = file_path
         self._cli_version = version
 
-        self._settings.setValue('cli-path', self._cli_path)
+        self._settings.setValue(HIDDEN_SETTING_FIELD_CLI_PATH, self._cli_path)
 
         # updating "Getting started" tab
         # kick off the slow call in a separate process
@@ -1485,7 +1521,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         try:
             self._org_name = future.result(timeout=TIMEOUT_TIME_IN_SECONDS)
         except concurrent.futures.TimeoutError:
-            # still running after TIMEOUT_TIME_IN_SECONDS s â†’ cancel & fallback
+            # still running after TIMEOUT_TIME_IN_SECONDS s -> cancel & fallback
             future.cancel()
             self._org_name = 'CONNECTION ERROR'
             self.show_generic_sdk_warning(message=TIMEOUT_ERROR)
@@ -1540,7 +1576,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
             semantic_schema = future.result(timeout=TIMEOUT_TIME_IN_SECONDS)
             self._default_input_pc_semantic_schema = self._parse_semantic_schema(semantic_schema)
         except concurrent.futures.TimeoutError:
-            # still running after TIMEOUT_TIME_IN_SECONDS s â†’ cancel & fallback
+            # still running after TIMEOUT_TIME_IN_SECONDS s -> cancel & fallback
             future.cancel()
             self.show_generic_sdk_warning(message=TIMEOUT_ERROR)
             return
@@ -1568,7 +1604,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         try:
             flow_templates = future.result(timeout=TIMEOUT_TIME_IN_SECONDS)
         except concurrent.futures.TimeoutError:
-            # still running after TIMEOUT_TIME_IN_SECONDS â†’ cancel & fallback
+            # still running after TIMEOUT_TIME_IN_SECONDS -> cancel & fallback
             future.cancel()
             self.show_generic_sdk_warning(message=TIMEOUT_ERROR)
             return
@@ -1642,7 +1678,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         )
 
         # default setting for QMessageBox was buggy, even if user clicked on Close (x) button this line "if ret == QtWidgets.QMessageBox.Ok" was True
-        # Give it both OK and Cancelâ€¦
+        # give it both OK and Cancel...
         msg.setStandardButtons(
             QtWidgets.QMessageBox.Ok |
             QtWidgets.QMessageBox.Cancel
@@ -1656,7 +1692,7 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
 
         ret = msg.exec_()
         if ret == QtWidgets.QMessageBox.Ok:
-            # on Windows this should call Explorer, on macOS â€œopenâ€, on Linux â€œxdg-openâ€
+            # on Windows this should call Explorer, on macOS "open", on Linux "xdg-open"
             QDesktopServices.openUrl(
                 QUrl.fromLocalFile(self._default_cli_dir)
             )
@@ -1676,20 +1712,21 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
         """Setter method to set the show_welcome_warning_value."""
         self._is_show_welcome_warning_disabled = value
         # self._loading_and_setting_show_welcome_warning_from_settings()
-        self.value_changed_for_welcome_warning.emit(self._is_show_welcome_warning_disabled)  # Emit the signal to notify listeners
+        self.value_changed_for_welcome_warning.emit(self._is_show_welcome_warning_disabled)  # emit the signal to notify listeners
 
 
     def _loading_and_setting_show_welcome_warning_from_settings(self):
-        if self._settings.contains('is-welcome-warning-disabled'):
-            int_value = int(self._settings.value('is-welcome-warning-disabled'))
+        if self._settings.contains(HIDDEN_SETTING_FIELD_SHOW_WELCOME_WARNING):
+            int_value = int(self._settings.value(HIDDEN_SETTING_FIELD_SHOW_WELCOME_WARNING))
             self._is_show_welcome_warning_disabled = bool(int_value)
         else:
-            self._settings.setValue('is-welcome-warning-disabled', int(self._is_show_welcome_warning_disabled))
+            self._settings.setValue(HIDDEN_SETTING_FIELD_SHOW_WELCOME_WARNING, int(self._is_show_welcome_warning_disabled))
 
 
     def _parse_semantic_schema(self, schema: dict, fields_to_keep=[SEMANTIC_DEFINITION_VALUE_FIELD, SEMANTIC_DEFINITION_LABEL_FIELD, SEMANTIC_DEFINITION_COLOR_FIELD]):
         final_variable = []
 
+        # filter out desired information
         for semantic_definition in schema.values():
             tmp = {}
             
@@ -1698,4 +1735,16 @@ class FlaiCLIInterfaceDialog(QtWidgets.QDialog, FORM_CLASS):
 
             final_variable.append(tmp)
 
-        return final_variable
+        for i in range(len(final_variable)):
+            final_variable[i][SEMANTIC_DEFINITION_LABEL_FIELD] = f'[{final_variable[i][SEMANTIC_DEFINITION_VALUE_FIELD]}] {final_variable[i][SEMANTIC_DEFINITION_LABEL_FIELD]}'
+
+        # fiter out non-numeric and sort ascending
+        # we get rid of the "DEFAULT" semantic_definition
+        numeric_only = [
+            item for item in final_variable
+            if isinstance(item.get("code"), (int))
+                or (isinstance(item.get("code"), str) and item["code"].isdigit())
+        ]
+        numeric_only.sort(key=lambda it: int(it["code"]))
+
+        return numeric_only
