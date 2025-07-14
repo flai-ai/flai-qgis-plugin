@@ -16,7 +16,7 @@
    </font>
   </property>
   <property name="windowTitle">
-   <string>Flai CLI plugin v0.2</string>
+   <string>Flai CLI plugin v0.3</string>
   </property>
   <widget class="QTabWidget" name="tabWidget">
    <property name="geometry">
@@ -102,7 +102,7 @@
       <string>Locate Flai CLI</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="pshBtn_downloadFile">
+    <widget class="QPushButton" name="pshBtn_resetCLIPath">
      <property name="geometry">
       <rect>
        <x>30</x>
@@ -117,13 +117,13 @@
       </font>
      </property>
      <property name="text">
-      <string>Get Flai CLI</string>
+      <string>Reset Flai CLI path</string>
      </property>
     </widget>
-    <widget class="QPushButton" name="pshBtn_reset">
+    <widget class="QPushButton" name="pshBtn_resetUI">
      <property name="geometry">
       <rect>
-       <x>240</x>
+       <x>260</x>
        <y>280</y>
        <width>175</width>
        <height>36</height>
@@ -191,13 +191,32 @@ image but display it with python code.</string>
       <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignTop</set>
      </property>
     </widget>
+    <widget class="QPushButton" name="pshBtn_downloadFile">
+     <property name="geometry">
+      <rect>
+       <x>30</x>
+       <y>410</y>
+       <width>175</width>
+       <height>36</height>
+      </rect>
+     </property>
+     <property name="font">
+      <font>
+       <pointsize>11</pointsize>
+      </font>
+     </property>
+     <property name="text">
+      <string>Get Flai CLI</string>
+     </property>
+    </widget>
     <zorder>label_wasCLIFound</zorder>
     <zorder>label_aboutCLIVersion</zorder>
     <zorder>label_aboutYourOrganization</zorder>
     <zorder>pshBtn_findFile</zorder>
-    <zorder>pshBtn_downloadFile</zorder>
-    <zorder>pshBtn_reset</zorder>
+    <zorder>pshBtn_resetCLIPath</zorder>
+    <zorder>pshBtn_resetUI</zorder>
     <zorder>label_logoFlai</zorder>
+    <zorder>pshBtn_downloadFile</zorder>
    </widget>
    <widget class="QWidget" name="tab_processing">
     <attribute name="title">
