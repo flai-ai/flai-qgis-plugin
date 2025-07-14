@@ -1,5 +1,8 @@
 import os
+from datetime import date
 from functools import partial
+
+from .constants import DATETIME_PLACEHOLDER 
 
 from qgis.PyQt.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QPushButton, QDialog,
@@ -156,11 +159,39 @@ class FileSelectionDialog(QDialog):
 
     # for this i get `Warning: QXcbConnection: XCB error: 3 (BadWindow), sequence: 14663, resource id: 2098093, major code: 40 (TranslateCoords), minor code: 0`
     def handle_folder_click(self, event, index, original_event):
+        current_text = self.edits[index].text()
+
+        # input was already set (from before)
+        if current_text and os.path.isdir(current_text):
+            start_dir = current_text
+        else:
+            # for outputs we do a little bit of parsing
+            if DATETIME_PLACEHOLDER in current_text:
+                marker = "current-date/current-time"
+                base, sep, tail = current_text.partition(marker)
+                # -> base == ".../outputs/", sep == "current-date/current-time", tail == "/raster_writer_1"
+
+                # 2) prepare the date‐folder name
+                today = date.today()
+                date_str = today.strftime("%Y.%m.%d")  # e.g. "2025.07.14"
+
+                # 3) build the candidate path and test for existence
+                candidate = os.path.join(base.rstrip(os.sep), date_str)
+                if os.path.isdir(candidate):
+                    start_dir = candidate
+                else:
+                    start_dir = base.rstrip(os.sep)
+
+            # empty input
+            else:
+                start_dir = QStandardPaths.writableLocation(
+                                QStandardPaths.DesktopLocation)
+
         """Allow picking a directory while still showing its files."""
         dlg = QFileDialog(
             self,
             f"Select folder for {self.final_types[index]} files",
-            QStandardPaths.writableLocation(QStandardPaths.DesktopLocation)
+            start_dir
         )
         # 1) use Qt’s own dialog so ShowDirsOnly=False is respected
         dlg.setOption(QFileDialog.Option.DontUseNativeDialog, True)
