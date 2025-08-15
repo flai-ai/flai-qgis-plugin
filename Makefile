@@ -1,7 +1,7 @@
 #/***************************************************************************
-# FlaiCLIInterface
+# FlaiQgisPlugin
 #
-# This plugin provides GUI control over FLAI CLI and easy access to Flai's DataHub.
+# Provides GUI access to Flai's Open Lidar Data Hub and local control over the Flai CLI for AI-powered geospatial classification.
 #							 -------------------
 #		begin				: 2025-06-11
 #		git sha				: $Format:%H$
