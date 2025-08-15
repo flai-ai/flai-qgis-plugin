@@ -1,16 +1,12 @@
 import os
-from datetime import date
+from datetime  import date
 from functools import partial
 
 from .constants import DATETIME_PLACEHOLDER 
 
-from qgis.PyQt.QtWidgets import (
-    QVBoxLayout, QHBoxLayout, QPushButton, QDialog,
-    QLabel, QLineEdit, QFileDialog, QGridLayout,
-    QWidget, QMessageBox
-)
-from qgis.PyQt.QtGui import QFont, QFontMetrics
-from qgis.PyQt.QtCore import QStandardPaths, Qt
+from qgis.PyQt.QtWidgets import QVBoxLayout, QHBoxLayout, QPushButton, QDialog, QLabel, QLineEdit, QFileDialog, QGridLayout, QWidget
+from qgis.PyQt.QtGui     import QFont, QFontMetrics
+from qgis.PyQt.QtCore    import QStandardPaths, Qt
 
 
 class FileSelectionDialog(QDialog):
@@ -51,7 +47,7 @@ class FileSelectionDialog(QDialog):
                     self.final_types.append(label_displaying_name[i])
                     break
 
-        # — pull ext_map into __init__ so we can refer to it everywhere
+        # pull ext_map into __init__ so we can refer to it everywhere
         self.ext_map = {
             "vector":      (".shp", ".geojson", ".kml"),
             "raster":      (".tif", ".tiff", ".png", ".jpg", ".jpeg"),
@@ -157,7 +153,6 @@ class FileSelectionDialog(QDialog):
         main_layout.addLayout(btn_hbox)
 
 
-    # for this i get `Warning: QXcbConnection: XCB error: 3 (BadWindow), sequence: 14663, resource id: 2098093, major code: 40 (TranslateCoords), minor code: 0`
     def handle_folder_click(self, event, index, original_event):
         current_text = self.edits[index].text()
 
@@ -218,6 +213,7 @@ class FileSelectionDialog(QDialog):
                 self.edits[index].clear()
         else:
             self.scanned_files[index] = folder
+            self.edits[index].setText(folder)
 
 
     def _scan_folder(self, index: int, folder: str):

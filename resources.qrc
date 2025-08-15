@@ -1,9 +1,8 @@
 <RCC>
-    <qresource prefix="/plugins/flai_cli_interface" >
+    <qresource prefix="/plugins/flai" >
         <file>media/icon.png</file>
-        <file>media/empty-icon.png</file>
-        <file>media/icon_with_CLI_2.png</file>
         <file>media/icons8-hard-hat-48.png</file>
-        <file>media/datahub_background.png</file>
+        <file>media/icon_with_DataHub.png</file>
+        <file>media/FLAI-sign-gradient-cropped.png</file>
     </qresource>
 </RCC>
