@@ -6,7 +6,7 @@
 name=Flai
 qgisMinimumVersion=3.0
 description=Provides GUI access to Flai’s Open Lidar Data Hub and local control over the Flai CLI for AI-powered geospatial classification.
-version=1.0.0
+version=1.0.1
 author=Flai d.o.o
 email=vid.tk@flai.ai
 
