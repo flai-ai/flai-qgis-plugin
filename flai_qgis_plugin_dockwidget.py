@@ -344,7 +344,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
     def _on_install_clicked(self, reinstalling_package = False):
         # swap UI into installing mode
         if not reinstalling_package:
-            self._promptLabel.setText("Installing flai-sdk, please wait...")
+            self._promptLabel.setText("Installing flai-sdk, please wait... It might take some time...")
         
         self._installBtn.setEnabled(False)
         self._cancelBtn.setEnabled(False)
@@ -367,11 +367,17 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 pass  # no "install" in args, nothing to do
             else:
                 # desired flags in order
-                flags = ["--upgrade", "--force-reinstall"]  # --force-reinstall overkill, but might be useful in future in case anything package gets somehow corrupted
+                extra_flags = [
+                    "--upgrade",                        # upgrade to latest flai-sdk package
+                    "--upgrade-strategy", "eager",      # upgrade all dependencies of the package
+                    "--no-cache-dir",                   # dont use pip cache
+                    "--force-reinstall",                # overwrite old version of the package(s)
+                ]
+
                 # insert in reverse so the final order after "install" is as in `flags`
-                for flag in reversed(flags):
+                for flag in reversed(extra_flags):
                     # only insert if not already present right after install (or further down)
-                    if flag not in base_args[idx + 1: idx + 1 + len(flags)]:
+                    if flag not in base_args[idx + 1: idx + 1 + len(extra_flags)]:
                         base_args.insert(idx + 1, flag)
 
         # use correct QGIS's python path based on user's OS
@@ -463,8 +469,21 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             layout = QVBoxLayout()
 
             # set label for the message
-            message = "In order for plugin to work as expected, it needs connection to the internet\nto gether data from our servers (to get data for flows)."
+            message = \
+            """
+            <p>In order for plugin to work as expected, it needs connection to the internet
+            to gather data from our servers (to get data for flows).</p>
+
+            <p>For more information about plugin usage and know-how see:
+            <a href="https://www.flai.ai/post/flai-in-qgis-open-data-and-ai-analysis-one-click-away">
+            this post on flai.ai</a>.</p>
+            """
+
             message_label = QLabel(message, msg_box)
+            message_label.setTextFormat(Qt.RichText)                          # treat as HTML
+            message_label.setTextInteractionFlags(Qt.TextBrowserInteraction)  # allow clicking & selection
+            message_label.setOpenExternalLinks(True)                          # open in default browser
+            message_label.setWordWrap(True)
             layout.addWidget(message_label)
 
             # create the checkbox
