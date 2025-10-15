@@ -34,9 +34,9 @@ from .file_selection_dialog import FileSelectionDialog
 from .download_dialog       import DownloadDialog
 from .constants             import *
 
-from qgis.PyQt.QtCore    import Qt, QUrl, pyqtSlot, QTimer, QSettings, QProcess, pyqtSignal, QStandardPaths, QFile, QIODevice, QJsonDocument, QJsonParseError, QSize, QEvent
-from qgis.PyQt.QtGui     import QDesktopServices, QPixmap, QFont, QColor
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QCheckBox, QVBoxLayout, QPushButton, QLabel, QGraphicsOpacityEffect, QMessageBox, QPlainTextEdit, QHBoxLayout, QTableWidgetItem, QWidget, QAbstractItemView, QWIDGETSIZE_MAX
+from qgis.PyQt.QtCore    import Qt, QUrl, pyqtSlot, QTimer, QSettings, QProcess, pyqtSignal, QStandardPaths, QFile, QIODevice, QJsonDocument, QJsonParseError, QSize, QEvent, QObject
+from qgis.PyQt.QtGui     import QDesktopServices, QPixmap, QFont, QColor, QFontMetrics
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QCheckBox, QVBoxLayout, QPushButton, QLabel, QMessageBox, QPlainTextEdit, QHBoxLayout, QTableWidgetItem, QWidget, QAbstractItemView, QHeaderView, QSizePolicy, QWIDGETSIZE_MAX
 from qgis.PyQt           import uic, QtWidgets
 from qgis.core           import QgsProject, QgsLayerTreeLayer, QgsVectorLayer, QgsRasterLayer, QgsPointCloudLayer, QgsVectorTileLayer, QgsPointCloudCategory, QgsPointCloudClassifiedRenderer, QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsLayerTreeGroup, QgsVectorTileBasicRenderer
 
@@ -387,13 +387,18 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
         elif self._current_system == SYSTEM_MACOS:
             # path to QGIS's internal Python interpreter
-            qgis_app_path = "/Applications/QGIS-LTR.app"
-            possible_paths = [
-                os.path.join(qgis_app_path, "Contents/MacOS/bin/python3"),
-                os.path.join(qgis_app_path, "Contents/Frameworks/Python.framework/Versions/Current/bin/python3")
-            ]
-            program = next((p for p in possible_paths if os.path.exists(p)), sys.executable)    # test which of these is available
-        
+            program = sys.executable
+            # convert the launcher path to the embedded python3 path(s)
+            contents = program.rsplit("/Contents/MacOS/QGIS", 1)[0] + "/Contents"
+            
+            for p in (
+                os.path.join(contents, "MacOS/bin/python3"),
+                os.path.join(contents, "Frameworks/Python.framework/Versions/Current/bin/python3"),
+            ):
+                if os.path.exists(p):
+                    program = p
+                    break
+
         else:
             program = sys.executable
 
@@ -532,9 +537,9 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             self._installDialog = QDialog(self)
 
             if not reinstalling_package:
-                self._installDialog.setWindowTitle("Flai CLI interface - missing dependency")
+                self._installDialog.setWindowTitle("Flai's plugin - missing dependency")
             else:
-                self._installDialog.setWindowTitle("Flai CLI interface - FLAI SDK managment")
+                self._installDialog.setWindowTitle("Flai's plugin - FLAI SDK managment")
 
             # make it bigger up front
             self._installDialog.resize(600, 250)
@@ -1136,6 +1141,129 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         }
     
 
+    def _hook_table_auto_fill(self, tbl):
+        header = tbl.horizontalHeader()
+        n = tbl.columnCount()
+        if n == 0:
+            return
+
+        # modes & scrollbars (scroll only if truly too narrow to fit header minima)
+        for c in range(n):
+            header.setSectionResizeMode(c, QHeaderView.Interactive)
+        header.setCascadingSectionResizes(True)
+        header.setStretchLastSection(False)
+        tbl.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        tbl.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+
+        # per-column minimums based on header text so labels never clip
+        fm = QFontMetrics(header.font())
+        PADDING = 24  # margin + sort indicator
+        labels = [(tbl.horizontalHeaderItem(i).text() if tbl.horizontalHeaderItem(i) else "") for i in range(n)]
+        per_min = [max(40, fm.horizontalAdvance(txt) + PADDING) for txt in labels]
+
+        # ensure any QWidget cell can actually expand (do this once per build)
+        for r in range(tbl.rowCount()):
+            for c in range(n):
+                w = tbl.cellWidget(r, c)
+                if w is not None:
+                    # expanding horizontally lets it consume the column width
+                    policy = w.sizePolicy()
+                    policy.setHorizontalPolicy(QSizePolicy.Expanding)
+                    w.setSizePolicy(policy)
+                    if hasattr(w, "setMinimumWidth"):
+                        w.setMinimumWidth(1)
+
+        # keep proportional weights (from current widths) and redistribute to fill viewport
+        def current_weights():
+            widths = [max(per_min[i], tbl.columnWidth(i)) for i in range(n)]
+            total = sum(widths) or 1
+            return [w / total for w in widths]
+
+        # store on the table so re-calling this function won’t duplicate state
+        tbl._aff_weights = current_weights()
+
+        def redistribute():
+            # if structure changed, bail (caller will re-hook after rebuild)
+            if tbl.columnCount() != n:
+                return
+
+            # viewport width already accounts for scrollbars and style paddings
+            avail = max(0, tbl.viewport().width())
+            min_sum = sum(per_min)
+
+            if avail < min_sum:
+                # too narrow: pin each column to its minimum and show horizontal scrollbar
+                for i in range(n):
+                    tbl.setColumnWidth(i, per_min[i])
+                return
+
+            # allocate proportionally, then fix rounding to exactly match viewport width
+            targets = [max(int(round(avail * w)), per_min[i]) for i, w in enumerate(tbl._aff_weights)]
+            delta = avail - sum(targets)
+
+            if delta != 0:
+                # give/take pixels to eliminate any residual gap or overflow
+                order = sorted(range(n), key=lambda i: targets[i], reverse=True)
+                k = 0
+                while delta != 0 and order:
+                    j = order[k % len(order)]
+                    nxt = targets[j] + (1 if delta > 0 else -1)
+                    if nxt >= per_min[j]:
+                        targets[j] = nxt
+                        delta += (-1 if delta > 0 else 1)
+                    k += 1
+
+            for i, w in enumerate(targets):
+                tbl.setColumnWidth(i, w)
+
+        def on_section_resized(_logical, _old, _new):
+            # user dragged a header: capture new proportions, then fill to viewport
+            tbl._aff_weights = current_weights()
+            QTimer.singleShot(0, redistribute)
+
+        # hook events ONCE (safe if this function is called again)
+        try:
+            header.sectionResized.disconnect(tbl._aff_section_cb)
+        except Exception:
+            pass
+        tbl._aff_section_cb = on_section_resized
+        header.sectionResized.connect(tbl._aff_section_cb)
+
+        class _ResizeFilter(QObject):
+            def eventFilter(self, obj, ev):
+                if ev.type() in (QEvent.Resize, QEvent.Show):
+                    QTimer.singleShot(0, redistribute)
+                return False
+
+        if not hasattr(tbl, "_aff_viewport_filter"):
+            tbl._aff_viewport_filter = _ResizeFilter(tbl)
+            tbl.viewport().installEventFilter(tbl._aff_viewport_filter)
+
+        if not hasattr(tbl, "_aff_table_filter"):
+            tbl._aff_table_filter = _ResizeFilter(tbl)
+            tbl.installEventFilter(tbl._aff_table_filter)
+
+        # scrollbar appearance can change viewport width; reflow on range change
+        try:
+            tbl.verticalScrollBar().rangeChanged.disconnect(tbl._aff_vscroll_cb)
+        except Exception:
+            pass
+        tbl._aff_vscroll_cb = lambda *_: QTimer.singleShot(0, redistribute)
+        tbl.verticalScrollBar().rangeChanged.connect(tbl._aff_vscroll_cb)
+
+        try:
+            header.geometriesChanged.disconnect(tbl._aff_geom_cb)
+        except Exception:
+            pass
+        tbl._aff_geom_cb = lambda: QTimer.singleShot(0, redistribute)
+        header.geometriesChanged.connect(tbl._aff_geom_cb)
+
+        # initial pass (also ensures current widths >= minima and fills to the right edge)
+        for i in range(n):
+            tbl.setColumnWidth(i, max(tbl.columnWidth(i), per_min[i]))
+        QTimer.singleShot(0, redistribute)
+
+
     def _check_region_future(self):
         # get data from thread
         if not self._datahub_future.done():
@@ -1160,18 +1288,30 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             return
 
         # populate table headers
-        self.pshBtn_downloadCheckedDatasets.setEnabled(False)
-        self.tableWidget_availableRegionDatasets.blockSignals(True)     # suspend signals
+        self.pshBtn_downloadCheckedDatasets.setEnabled(False)   # suspend signals
+        tbl = self.tableWidget_availableRegionDatasets
+        tbl.blockSignals(True)
 
-        self.tableWidget_availableRegionDatasets.setColumnCount(len(TABEL_AVAILABLE_REGIONS_ITEMS))
-        self.tableWidget_availableRegionDatasets.setHorizontalHeaderLabels(TABEL_AVAILABLE_REGIONS_ITEMS)
-        self.tableWidget_availableRegionDatasets.setRowCount(len(self._region_subsets))
+        tbl.setColumnCount(len(TABEL_AVAILABLE_REGIONS_ITEMS))
+        tbl.setHorizontalHeaderLabels(TABEL_AVAILABLE_REGIONS_ITEMS)
+        tbl.setRowCount(len(self._region_subsets))
+        tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)   # make table non-editable except widgets (checkboxes are separate)
+        tbl.verticalHeader().setVisible(False)                  # hide row numbers
+        tbl.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
 
-        # make table non-editable except widgets (checkboxes are separate)
-        self.tableWidget_availableRegionDatasets.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        header = tbl.horizontalHeader()
+        last_col = tbl.columnCount() - 1
 
-        # hide row numbers
-        self.tableWidget_availableRegionDatasets.verticalHeader().setVisible(False)
+        # header modes: user-resizable everywhere (no platform quirks)
+        # first column small, rest interactive; we manage the "fill" logic ourselves.
+        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        for c in range(1, last_col + 1):
+            header.setSectionResizeMode(c, QHeaderView.Interactive)
+
+        # avoid odd jumps when a section grows: let Qt cascade space properly
+        header.setCascadingSectionResizes(True)
+        # reasonable minimum so columns don't collapse to zero while dragging
+        header.setMinimumSectionSize(30)
 
         # populate rows
         for row, entry in enumerate(self._region_subsets):
@@ -1181,9 +1321,11 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             container = QWidget()
             layout = QHBoxLayout(container)
             layout.setContentsMargins(0, 0, 0, 0)
-            layout.addWidget(checkbox)
             layout.setAlignment(Qt.AlignCenter)
-            self.tableWidget_availableRegionDatasets.setCellWidget(row, 0, container)
+            layout.addWidget(checkbox)
+            # keep this column tight
+            container.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+            tbl.setCellWidget(row, 0, container)
 
             # other columns except last
             values = [
@@ -1192,40 +1334,78 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 entry["srid"],
                 f'{float(entry["pointcloud_dataset_point_density"]):.2f} pts / m²',
                 f'{entry["total_items"]} ({self._human_readable(entry["total_bytes"])})',
-                entry["license"]  # placeholder; will be replaced for markdown rendering below
+                entry["license"]  # markdown -> QLabel below
             ]
             for col, val in enumerate(values, start=1):
-                if col == self.tableWidget_availableRegionDatasets.columnCount() - 1:
+                if col == last_col:
                     # last column: has markdown-style link; use QLabel widget
-                    raw_text = str(val)
                     label = QLabel()
                     label.setTextFormat(Qt.RichText)
-                    label.setText(self._link_md_to_html_single_line(raw_text))
+                    label.setText(self._link_md_to_html_single_line(str(val)))
                     label.setAlignment(Qt.AlignCenter)
-                    label.setWordWrap(False)  # important: don't wrap
-                    label.setContentsMargins(5, 0, 5, 0)
+                    label.setWordWrap(False)
                     label.setTextInteractionFlags(Qt.TextBrowserInteraction)
                     label.setOpenExternalLinks(True)
-                    self.tableWidget_availableRegionDatasets.setCellWidget(row, col, label)
+                    # CRUCIAL: let label stretch/shrink with the column
+                    label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+                    label.setMinimumWidth(1)
+                    tbl.setCellWidget(row, col, label)
                 else:
                     item = QTableWidgetItem(str(val))
                     item.setTextAlignment(Qt.AlignCenter)
                     # ensure not editable (redundant due to NoEditTriggers, but safe)
                     item.setFlags(item.flags() & ~Qt.ItemIsEditable)
-                    self.tableWidget_availableRegionDatasets.setItem(row, col, item)
+                    tbl.setItem(row, col, item)
 
-        # auto-size with padding
-        self.tableWidget_availableRegionDatasets.resizeColumnsToContents()
-        for col in range(self.tableWidget_availableRegionDatasets.columnCount()):
-            current = self.tableWidget_availableRegionDatasets.columnWidth(col)
-            self.tableWidget_availableRegionDatasets.setColumnWidth(col, current + 10)
+        # let Qt choose a sensible starting size (esp. for col 0 / contents)
+        tbl.resizeColumnsToContents()
+        self._hook_table_auto_fill(self.tableWidget_availableRegionDatasets)
 
-        # extra for last column
-        last = self.tableWidget_availableRegionDatasets.columnCount() - 1
-        current = self.tableWidget_availableRegionDatasets.columnWidth(last)
-        self.tableWidget_availableRegionDatasets.setColumnWidth(last, current + 25)
+        # keep last column filling leftover width without "collision"
+        def _sum_other_columns(exclude):
+            return sum(tbl.columnWidth(c) for c in range(tbl.columnCount()) if c != exclude)
 
-        self.tableWidget_availableRegionDatasets.blockSignals(False)    # reenable signaling
+        def _fill_last_column():
+            if tbl.columnCount() == 0:
+                return
+            viewport_w = tbl.viewport().width()
+            other_w = _sum_other_columns(last_col)
+            remaining = viewport_w - other_w
+            # only expand last column if there's slack; don't force shrink below min size
+            min_last = max(header.minimumSectionSize(), 20)
+            if remaining >= min_last:
+                # -1 avoids off-by-one scrollbars on macOS styles
+                tbl.setColumnWidth(last_col, remaining - 1)
+
+        # connect once; avoid duplicate connections if this function runs often
+        try:
+            header.sectionResized.disconnect(self._region_table_section_resized_cb)
+        except Exception:
+            pass
+
+        def _on_section_resized(logical_index, old_size, new_size):
+            # if a non-last column changed, let the last column absorb/release slack.
+            if logical_index != last_col:
+                _fill_last_column()
+
+        self._region_table_section_resized_cb = _on_section_resized
+        header.sectionResized.connect(self._region_table_section_resized_cb)
+
+        # also react to viewport/table size changes (splitter moves, window resize, DPI)
+        class _ViewportFilter(QObject):
+            def eventFilter(self, obj, ev):
+                if ev.type() in (QEvent.Resize, QEvent.Show):
+                    QTimer.singleShot(0, _fill_last_column)
+                return False
+
+        if not hasattr(self, "_region_tbl_vp_filter"):
+            self._region_tbl_vp_filter = _ViewportFilter(tbl)
+            tbl.viewport().installEventFilter(self._region_tbl_vp_filter)
+
+        # queue one pass after pending layouts
+        QTimer.singleShot(0, _fill_last_column)
+
+        tbl.blockSignals(False) # reenable signaling
 
 
     def _on_downloadCheckedDatasets_pressed(self):
