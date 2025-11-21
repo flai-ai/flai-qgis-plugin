@@ -21,7 +21,7 @@ class FileSelectionDialog(QDialog):
         ):
         super().__init__(parent)
         self.setWindowTitle(window_title)
-        self.setWindowModality(Qt.ApplicationModal)
+        self.setWindowModality(Qt.WindowModality.ApplicationModal)
         self.setMinimumWidth(600)
 
         # pull in the font (or default) and apply it to the whole dialog
@@ -98,13 +98,13 @@ class FileSelectionDialog(QDialog):
             warn.setFont(inherited_font)
             self.warning_labels.append(warn)
             grid.addWidget(QWidget(), i*3,   0)
-            grid.addWidget(warn,          i*3,   1, Qt.AlignLeft)
+            grid.addWidget(warn,          i*3,   1, Qt.AlignmentFlag.AlignLeft)
 
             #–– label + line edit row
             lbl = QLabel(label_texts[i])
             lbl.setFont(inherited_font)
             lbl.setFixedWidth(max_label_w)
-            grid.addWidget(lbl, i*3+1, 0, Qt.AlignVCenter)
+            grid.addWidget(lbl, i*3+1, 0, Qt.AlignmentFlag.AlignVCenter)
 
             le = QLineEdit()
             # apply uniform height and font
@@ -180,7 +180,7 @@ class FileSelectionDialog(QDialog):
             # empty input
             else:
                 start_dir = QStandardPaths.writableLocation(
-                                QStandardPaths.DesktopLocation)
+                                QStandardPaths.StandardLocation.DesktopLocation)
 
         """Allow picking a directory while still showing its files."""
         dlg = QFileDialog(
@@ -195,7 +195,7 @@ class FileSelectionDialog(QDialog):
         # 3) but show both files and folders in the list
         dlg.setOption(QFileDialog.Option.ShowDirsOnly, False)
 
-        if not dlg.exec_():
+        if not dlg.exec():
             self.warning_labels[index].setText("No folder selected.")
             return original_event(event)
 

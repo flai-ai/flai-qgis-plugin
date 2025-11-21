@@ -168,7 +168,7 @@ class FlaiQgisPlugin:
         
         # build main plugin interface so that we can maniplulate it with menu entries and so on
         self.dck = FlaiQgisPluginDockWidget(iface=self.iface)
-        self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.dck)
+        self.iface.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dck)
 
         # # 1. grab its existing font
         # font = self.dck.font()
@@ -283,7 +283,7 @@ class FlaiQgisPlugin:
         
         # recreate the dialog and show it
         self.dck = FlaiQgisPluginDockWidget(iface=self.iface)
-        self.iface.addDockWidget(Qt.BottomDockWidgetArea, self.dck)
+        self.iface.addDockWidget(Qt.DockWidgetArea.BottomDockWidgetArea, self.dck)
         self.run()
 
 

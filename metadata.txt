@@ -6,7 +6,7 @@
 name=Flai
 qgisMinimumVersion=3.0
 description=Provides GUI access to Flai’s Open Lidar Data Hub and local control over the Flai CLI for AI-powered geospatial classification.
-version=1.0.2
+version=1.1.0
 author=Flai d.o.o
 email=vid.tk@flai.ai
 
@@ -47,3 +47,6 @@ deprecated=False
 
 # If the plugin can run on QGIS Server.
 server=False
+
+# Qtv6 support / QGIS v4 support
+supportsQt6=True

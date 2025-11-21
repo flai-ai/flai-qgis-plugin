@@ -36,8 +36,8 @@ class DownloadDialog(QDialog):
         self._tree.setHeaderLabels(["Folder with files", "Progress"])
         self._tree.setRootIsDecorated(True)
         self._tree.setAlternatingRowColors(True)
-        self._tree.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self._tree.setFocusPolicy(Qt.NoFocus)
+        self._tree.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self._tree.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self._tree.setUniformRowHeights(False)  # allow tall rows if needed
 
         self._statusLbl = QLabel("Ready")
@@ -63,7 +63,7 @@ class DownloadDialog(QDialog):
 
             # right-aligned folder label in column 0 (like before)
             folder_lbl = QLabel(folder)
-            folder_lbl.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            folder_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             folder_lbl.setContentsMargins(4, 0, 4, 0)  # padding like your table code
             self._tree.setItemWidget(parent_item, 0, folder_lbl)
 
@@ -108,7 +108,7 @@ class DownloadDialog(QDialog):
 
 
     def eventFilter(self, obj, event):
-        if obj is self._tree.viewport() and event.type() == QEvent.Resize:
+        if obj is self._tree.viewport() and event.type() == QEvent.Type.Resize:
             self._adjust_column_widths()
         return super().eventFilter(obj, event)
 
