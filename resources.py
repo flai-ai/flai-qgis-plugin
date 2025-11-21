@@ -6,7 +6,9 @@
 #
 # WARNING! All changes made in this file will be lost!
 
-from PyQt5 import QtCore
+# You will have to manually correct this line each time resource.qrc will be updated
+# if we still wish to support Qgis v3 alongside latest release (v4)
+from qgis.PyQt import QtCore
 
 qt_resource_data = b"\
 \x00\x00\x03\x56\

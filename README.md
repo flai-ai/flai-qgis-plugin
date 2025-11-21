@@ -112,6 +112,26 @@ mamba activate py-gis
 qgis
 ```
 
+### QGIS and missing module pip
+
+In some versions of QGIS, the pip module is not included in the QGIS Python environment, so manual intervention is required. Warning! Keep in mind that this might break your version of QGIS if the pip module is missing, but it should not affect other versions.
+
+Depending on your operating system, you will need to find the location of your QGIS program that does not have pip. From there, you will access Python.
+
+You can keep QGIS open while installing pip, but after installation is complete, you must completely close the QGIS program and reopen it so the changes are applied.
+
+#### Windows
+
+In `Search bar` type `OSGeo4W Shell`, find it and open it / click on it. Terminal should appear.
+
+#### Other OSes
+
+Look at section `How can I manually update FLAI-SDK package`. Use terminal.
+
+#### Installing pip
+
+Once the terminal is open call `python3 -m ensurepip --upgrade`.
+
 
 ## License
 

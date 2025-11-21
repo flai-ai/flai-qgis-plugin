@@ -33,6 +33,7 @@ from pathlib            import Path
 from .file_selection_dialog import FileSelectionDialog
 from .download_dialog       import DownloadDialog
 from .constants             import *
+from .compatibily_qt        import *
 
 from qgis.PyQt.QtCore    import Qt, QUrl, pyqtSlot, QTimer, QSettings, QProcess, pyqtSignal, QStandardPaths, QFile, QIODevice, QJsonDocument, QJsonParseError, QSize, QEvent, QObject
 from qgis.PyQt.QtGui     import QDesktopServices, QPixmap, QFont, QColor, QFontMetrics
@@ -95,7 +96,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         plugin_dir = os.path.dirname(__file__)  # this file lives in .../plugins/flai-cli-interface/
         
         self._cfg_path = os.path.join(plugin_dir, HIDDEN_SETTINGS_FILE_NAME)    # create a QSettings that reads/writes program settings, to make life easier for user
-        self._settings = QSettings(self._cfg_path, QSettings.IniFormat)
+        self._settings = QSettings(self._cfg_path, QSettings.Format.IniFormat)
 
         # setting paths (for CLI and for DataHub)
         self._default_cli_dir     = os.path.join(plugin_dir, MAIN_SAVING_FOLDER_NAME, CLI_FOLDER_NAME)
@@ -109,7 +110,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self._current_system = platform.system()
 
         # make minimal flai config file so that user does not need to configure it for manually for datahub
-        home = QStandardPaths.writableLocation(QStandardPaths.HomeLocation)
+        home = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.HomeLocation)
         self._hidden_flai_config_file_path = Path(home) / HIDDEN_FLAI_CONFIG_FILE_NAME
 
         if not self._hidden_flai_config_file_path.exists():
@@ -307,8 +308,8 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
         # double-click on native/custom title bar -> let Qt toggle, then maximize if floating
         if is_self_or_title and et in (
-            QEvent.NonClientAreaMouseButtonDblClick,  # native title bar
-            QEvent.MouseButtonDblClick,               # custom title bar widget
+            QEvent.Type.NonClientAreaMouseButtonDblClick,  # native title bar
+            QEvent.Type.MouseButtonDblClick,               # custom title bar widget
         ):
             QTimer.singleShot(0, self._maximize_if_floating_with_retries)
             return False  # don't eat it; default undock/redock should still run
@@ -341,7 +342,50 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             QTimer.singleShot(100, lambda: self._maximize_if_floating_with_retries(tries - 1))
 
 
+    def _ensure_pip_available(self) -> bool:
+        """
+        Makes sure 'pip' is importable in this Python environment.
+
+        Returns:
+            True if pip is available (already present or successfully bootstrapped),
+            False otherwise.
+        """
+        try:
+            import pip  # type: ignore
+            # pip already available
+            self._installer_log.appendHtml("pip is already available.<br>")
+            return True
+        except ImportError:
+            self._installer_log.appendHtml("pip is not available, trying to bootstrap it with ensurepip...<br>")
+
+        try:
+            import ensurepip
+        except ImportError:
+            # No ensurepip -> cannot install pip programmatically
+            self._installer_log.appendHtml(
+                "<b>Failed</b>: Python module 'ensurepip' is not available in this QGIS Python.<br>"
+                "Cannot install pip automatically.<br>"
+            )
+            return False
+
+        try:
+            # Install/upgrade pip into this interpreter
+            ensurepip.bootstrap(upgrade=True)
+            importlib.invalidate_caches()
+
+            # Double-check that pip is now importable
+            import pip  # type: ignore
+            self._installer_log.appendHtml("Successfully bootstrapped pip using ensurepip.<br>")
+            return True
+        except Exception as e:
+            self._installer_log.appendHtml(
+                f"<b>Failed</b> to bootstrap pip using ensurepip: {e!r}<br>"
+            )
+            return False
+
     def _on_install_clicked(self, reinstalling_package = False):
+        self._promptLabel.setOpenExternalLinks(True)
+
         # swap UI into installing mode
         if not reinstalling_package:
             self._promptLabel.setText("Installing flai-sdk, please wait... It might take some time...")
@@ -349,6 +393,20 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         self._installBtn.setEnabled(False)
         self._cancelBtn.setEnabled(False)
         self._installer_log.show()
+
+        # make sure pip exists before we try to call `python -m pip`
+        if not self._ensure_pip_available():
+            # Fatal: we can't proceed with installation
+            self._promptLabel.setText(
+                "Installation failed: 'pip' is not available in this QGIS Python.<br>"
+                "Please ask your administrator to install 'flai-sdk' into the QGIS Python environment. "
+                "Installation guide for it can be found on our "
+                "<a href=\"https://github.com/flai-ai/flai-qgis-plugin\">Github page of the plugin</a>."
+            )
+            # allow user to try again / close dialog
+            self._installBtn.setEnabled(True)
+            self._cancelBtn.setEnabled(True)
+            return
 
         # clear any stale caches so import will work after install
         importlib.invalidate_caches()
@@ -485,8 +543,8 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             """
 
             message_label = QLabel(message, msg_box)
-            message_label.setTextFormat(Qt.RichText)                          # treat as HTML
-            message_label.setTextInteractionFlags(Qt.TextBrowserInteraction)  # allow clicking & selection
+            message_label.setTextFormat(Qt.TextFormat.RichText)                          # treat as HTML
+            message_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)  # allow clicking & selection
             message_label.setOpenExternalLinks(True)                          # open in default browser
             message_label.setWordWrap(True)
             layout.addWidget(message_label)
@@ -506,9 +564,9 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             # unify font
             msg_box.setFont(self._font_inside_msg_box)
 
-            result = msg_box.exec_()
+            result = msg_box.exec()
 
-            if result != QDialog.Accepted:
+            if result != QDialog.DialogCode.Accepted:
                 return
 
             # after the dialog is closed, we can check the state of the checkbox
@@ -563,9 +621,9 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 )
 
             self._installDialog.setWindowFlags(
-                  Qt.Dialog
-                | Qt.CustomizeWindowHint
-                | Qt.WindowTitleHint
+                  Qt.WindowType.Dialog
+                | Qt.WindowType.CustomizeWindowHint
+                | Qt.WindowType.WindowTitleHint
             )
 
             layout.addWidget(self._promptLabel)
@@ -595,7 +653,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 self._on_install_clicked(reinstalling_package=True)
 
             self._cancelBtn.clicked.connect(lambda: (setattr(self._installDialog, "_cancel_clicked", True) or self._installDialog.reject()))
-            self._installDialog.exec_()
+            self._installDialog.exec()
 
             # super nasty solution
             # should not show our dialog if our sdk was not installed and user clicked `Close plugin` button
@@ -614,7 +672,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # stop the QProcess + its entire tree
         if hasattr(self, "_running_flow_process"):
             proc = self._running_flow_process
-            if proc.state() != QProcess.NotRunning:
+            if proc.state() != QProcess.ProcessState.NotRunning:
                 try:
                     # first, try the graceful Qt shutdown
                     proc.terminate()
@@ -649,13 +707,13 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                                  title: str = "flai-sdk encountered a problem"
                                  ) -> QMessageBox.StandardButton:
         box = QMessageBox(self)                     # parent=this dialog
-        box.setIcon(QMessageBox.Warning)            # yellow warning icon
+        box.setIcon(ICON_WARNING)            # yellow warning icon
         box.setWindowTitle(title)
         box.setText(message)
-        box.setStandardButtons(QMessageBox.Ok)
-        box.setDefaultButton(QMessageBox.Ok)
-        box.setWindowModality(Qt.WindowModal)       # only block this dialog
-        return box.exec_()
+        box.setStandardButtons(BTN_OK)
+        box.setDefaultButton(BTN_OK)
+        box.setWindowModality(Qt.WindowModality.WindowModal)       # only block this dialog
+        return box.exec()
 
 
     def _choose_focus_tab(self):
@@ -741,7 +799,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
             idx = self.cmbBx_measurementUnits.findText(
                 saved_measurement_unit, 
-                Qt.MatchExactly
+                Qt.MatchFlag.MatchExactly
             )
 
             # if we found it set it as current index
@@ -780,7 +838,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
             idx = self.cmbBx_dataDisplayingBehaviour.findText(
                 saving_type, 
-                Qt.MatchExactly
+                Qt.MatchFlag.MatchExactly
             )
 
             # if we found it set it as current index
@@ -1149,11 +1207,11 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
         # modes & scrollbars (scroll only if truly too narrow to fit header minima)
         for c in range(n):
-            header.setSectionResizeMode(c, QHeaderView.Interactive)
+            header.setSectionResizeMode(c, QHeaderView.ResizeMode.Interactive)
         header.setCascadingSectionResizes(True)
         header.setStretchLastSection(False)
-        tbl.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        tbl.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        tbl.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        tbl.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         # per-column minimums based on header text so labels never clip
         fm = QFontMetrics(header.font())
@@ -1168,7 +1226,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 if w is not None:
                     # expanding horizontally lets it consume the column width
                     policy = w.sizePolicy()
-                    policy.setHorizontalPolicy(QSizePolicy.Expanding)
+                    policy.setHorizontalPolicy(QSizePolicy.Policy.Expanding)
                     w.setSizePolicy(policy)
                     if hasattr(w, "setMinimumWidth"):
                         w.setMinimumWidth(1)
@@ -1231,7 +1289,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
         class _ResizeFilter(QObject):
             def eventFilter(self, obj, ev):
-                if ev.type() in (QEvent.Resize, QEvent.Show):
+                if ev.type() in (QEvent.Type.Resize, QEvent.Type.Show):
                     QTimer.singleShot(0, redistribute)
                 return False
 
@@ -1295,18 +1353,18 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         tbl.setColumnCount(len(TABEL_AVAILABLE_REGIONS_ITEMS))
         tbl.setHorizontalHeaderLabels(TABEL_AVAILABLE_REGIONS_ITEMS)
         tbl.setRowCount(len(self._region_subsets))
-        tbl.setEditTriggers(QAbstractItemView.NoEditTriggers)   # make table non-editable except widgets (checkboxes are separate)
+        tbl.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)   # make table non-editable except widgets (checkboxes are separate)
         tbl.verticalHeader().setVisible(False)                  # hide row numbers
-        tbl.setHorizontalScrollMode(QAbstractItemView.ScrollPerPixel)
+        tbl.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
 
         header = tbl.horizontalHeader()
         last_col = tbl.columnCount() - 1
 
         # header modes: user-resizable everywhere (no platform quirks)
         # first column small, rest interactive; we manage the "fill" logic ourselves.
-        header.setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
         for c in range(1, last_col + 1):
-            header.setSectionResizeMode(c, QHeaderView.Interactive)
+            header.setSectionResizeMode(c, QHeaderView.ResizeMode.Interactive)
 
         # avoid odd jumps when a section grows: let Qt cascade space properly
         header.setCascadingSectionResizes(True)
@@ -1321,10 +1379,10 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             container = QWidget()
             layout = QHBoxLayout(container)
             layout.setContentsMargins(0, 0, 0, 0)
-            layout.setAlignment(Qt.AlignCenter)
+            layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(checkbox)
             # keep this column tight
-            container.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Preferred)
+            container.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
             tbl.setCellWidget(row, 0, container)
 
             # other columns except last
@@ -1340,21 +1398,21 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 if col == last_col:
                     # last column: has markdown-style link; use QLabel widget
                     label = QLabel()
-                    label.setTextFormat(Qt.RichText)
+                    label.setTextFormat(Qt.TextFormat.RichText)
                     label.setText(self._link_md_to_html_single_line(str(val)))
-                    label.setAlignment(Qt.AlignCenter)
+                    label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     label.setWordWrap(False)
-                    label.setTextInteractionFlags(Qt.TextBrowserInteraction)
+                    label.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
                     label.setOpenExternalLinks(True)
                     # CRUCIAL: let label stretch/shrink with the column
-                    label.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+                    label.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
                     label.setMinimumWidth(1)
                     tbl.setCellWidget(row, col, label)
                 else:
                     item = QTableWidgetItem(str(val))
-                    item.setTextAlignment(Qt.AlignCenter)
+                    item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                     # ensure not editable (redundant due to NoEditTriggers, but safe)
-                    item.setFlags(item.flags() & ~Qt.ItemIsEditable)
+                    item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     tbl.setItem(row, col, item)
 
         # let Qt choose a sensible starting size (esp. for col 0 / contents)
@@ -1394,7 +1452,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # also react to viewport/table size changes (splitter moves, window resize, DPI)
         class _ViewportFilter(QObject):
             def eventFilter(self, obj, ev):
-                if ev.type() in (QEvent.Resize, QEvent.Show):
+                if ev.type() in (QEvent.Type.Resize, QEvent.Type.Show):
                     QTimer.singleShot(0, _fill_last_column)
                 return False
 
@@ -1468,7 +1526,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
         # inform the user about successful selection of CLI
         msg = QtWidgets.QMessageBox(self)
-        msg.setIcon(QtWidgets.QMessageBox.Information)
+        msg.setIcon(ICON_INFORMATION)
         msg.setWindowTitle("Notification before download")
         msg.setText(
             f'You have selected to download {len(tasks)} datasets from desired area. Each dataset will be downloaded in parallel. '
@@ -1480,14 +1538,14 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         )
 
         # remove default buttons and add custom ones
-        start_btn = msg.addButton("Start download", QtWidgets.QMessageBox.AcceptRole)
-        cancel_btn = msg.addButton("Cancel", QtWidgets.QMessageBox.RejectRole)
+        start_btn = msg.addButton("Start download", ROLE_ACCEPT)
+        cancel_btn = msg.addButton("Cancel", ROLE_REJECT)
 
         msg.setFont(self._font_inside_msg_box)
         for btn in msg.buttons():
             btn.setFont(self._font_inside_msg_box)
 
-        msg.exec_()
+        msg.exec()
 
         if msg.clickedButton() is start_btn:
             # check if Datahub layer is created
@@ -1704,7 +1762,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             is_output_manager = True if button_object_name == self.pshBtn_selectOutput else False
         )
 
-        dialog.exec_()
+        dialog.exec()
 
         # check if user did not successfully set input / ouput folders
         if button_object_name == self.pshBtn_selectInput:
@@ -1912,13 +1970,13 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 msg = QtWidgets.QMessageBox(self)
                 msg.setWindowTitle(f"Error getting flow template data")
                 msg.setText(f'{status}\n\nReseting back to empty flow template. Please try again or select different template.')
-                msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+                msg.setStandardButtons(BTN_OK)
 
                 msg.setFont(self._font_inside_msg_box)
                 for btn in msg.buttons():
                     btn.setFont(self._font_inside_msg_box)
 
-                msg.exec_()
+                msg.exec()
 
                 # reseting combobox back to default value
                 self.cmbBx_flowTemplate.setCurrentIndex(0)
@@ -2033,7 +2091,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         msg.setText(field_text)
 
         # add a custom fetch update button
-        msg.addButton("Fetch updates", QtWidgets.QMessageBox.AcceptRole)
+        msg.addButton("Fetch updates", ROLE_ACCEPT)
 
         msg.setFont(self._font_inside_msg_box)
         for btn in msg.buttons():
@@ -2042,7 +2100,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # schedule URL to open in 3 seconds
         QTimer.singleShot(3000, lambda: webbrowser.open(url, new=1))
 
-        msg.exec_()
+        msg.exec()
 
         # reset processing variables so that we dont keep old data
         self._clean_variables_of_processing_tab()
@@ -2114,16 +2172,16 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         shown_command = "\n".join(lines)
 
         msg = QtWidgets.QMessageBox(self)
-        msg.setIcon(QtWidgets.QMessageBox.Information)
+        msg.setIcon(ICON_INFORMATION)
         msg.setWindowTitle("Command to be executed")
         msg.setText(shown_command)
-        msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        msg.setStandardButtons(BTN_OK)
 
         msg.setFont(self._font_inside_msg_box)
         for btn in msg.buttons():
             btn.setFont(self._font_inside_msg_box)
 
-        msg.exec_()
+        msg.exec()
 
 
     def _get_executable_command(self):
@@ -2237,7 +2295,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             return
         
         msg = QtWidgets.QMessageBox(self)
-        msg.setIcon(QtWidgets.QMessageBox.Warning)
+        msg.setIcon(ICON_WARNING)
         msg.setWindowTitle("Confirming action")
         msg.setText(
             "Before we run the given command, make sure everything is set as expected flow-wise "
@@ -2248,17 +2306,17 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             "\n - at bottom right corner you can see latest line output from CLI."
         )
         # remove any default buttons:
-        msg.setStandardButtons(QtWidgets.QMessageBox.NoButton)
+        msg.setStandardButtons(BTN_NONE)
 
         # add your two custom buttons with appropriate roles:
-        btn_start = msg.addButton("Start processing", QtWidgets.QMessageBox.AcceptRole)
-        btn_back  = msg.addButton("Take me back",  QtWidgets.QMessageBox.RejectRole)
+        btn_start = msg.addButton("Start processing", ROLE_ACCEPT)
+        btn_back  = msg.addButton("Take me back",  ROLE_REJECT)
 
         msg.setFont(self._font_inside_msg_box)
         for btn in msg.buttons():
             btn.setFont(self._font_inside_msg_box)
 
-        msg.exec_()
+        msg.exec()
 
         if msg.clickedButton() == btn_start:
 
@@ -2332,7 +2390,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             # use QProcess for running CLI
             self._proc = QProcess(self)
             # merge stderr into stdout
-            self._proc.setProcessChannelMode(QProcess.MergedChannels)
+            self._proc.setProcessChannelMode(QProcess.ProcessChannelMode.MergedChannels)
             # whenever there is new data, append it to the text widget
             self._proc.readyReadStandardOutput.connect(self._read_output)
             self._proc.finished.connect(self._on_finished)  # this is the last thing that will happen when CLI stops
@@ -2548,7 +2606,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         auth = qgis_crs.authid()
         if auth:
             return auth
-        return qgis_crs.toWkt(QgsCoordinateReferenceSystem.WKT_PREFERRED)
+        return qgis_crs.toWkt(QgsCoordinateReferenceSystem.WktVariant.WKT_PREFERRED)
 
 
     def _create_layer(self, path, current_semantic_scheme = None, srid = None):
@@ -2711,16 +2769,16 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # if anything was wrong with CLI selection, display error
         if status != '':
             msg = QtWidgets.QMessageBox(self)
-            msg.setIcon(QtWidgets.QMessageBox.Critical)
+            msg.setIcon(ICON_CRITICAL)
             msg.setWindowTitle("Error")
             msg.setText(status)
-            msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            msg.setStandardButtons(BTN_OK)
 
             msg.setFont(self._font_inside_msg_box)
             for btn in msg.buttons():
                 btn.setFont(self._font_inside_msg_box)
 
-            msg.exec_()
+            msg.exec()
             return
 
         # store in instance
@@ -2737,20 +2795,20 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
         # inform the user about successful selection of CLI
         msg = QtWidgets.QMessageBox(self)
-        msg.setIcon(QtWidgets.QMessageBox.Information)
+        msg.setIcon(ICON_INFORMATION)
         msg.setWindowTitle("Flai CLI detected")
         msg.setText('CLI program successfully selected.\n\nProgram might seem stuck for a few second. It needs to fetch required data for to be able to use it.\n\nClick OK to proceed.')
-        msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+        msg.setStandardButtons(BTN_OK)
 
         msg.setFont(self._font_inside_msg_box)
         for btn in msg.buttons():
             btn.setFont(self._font_inside_msg_box)
 
-        msg.exec_()
+        msg.exec()
 
         if self._current_system == SYSTEM_MACOS:
             msg = QtWidgets.QMessageBox(self)
-            msg.setIcon(QtWidgets.QMessageBox.Information)
+            msg.setIcon(ICON_INFORMATION)
             msg.setWindowTitle("MacOS limitation")
             # Note: triple-quoted string preserves newlines exactly as shown
             message = \
@@ -2777,13 +2835,13 @@ TIPS AND TRICKS:
  - to get flow-id, fill out fields on "Processing" tab until "Show me" button is enabled (there you will also get information which local_readers and local_writters to use)
 """
             msg.setText(message)
-            msg.setStandardButtons(QtWidgets.QMessageBox.Ok)
+            msg.setStandardButtons(BTN_OK)
 
             msg.setFont(self._font_inside_msg_box)
             for btn in msg.buttons():
                 btn.setFont(self._font_inside_msg_box)
 
-            msg.exec_()
+            msg.exec()
 
         # wait for slow call to finish
         try:
@@ -2799,16 +2857,16 @@ TIPS AND TRICKS:
         
         # parsing data from .flai on user's home path, since WSL cannot access it
         if self._current_system == SYSTEM_WINDOWS:
-            home = QStandardPaths.writableLocation(QStandardPaths.HomeLocation)
+            home = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.HomeLocation)
             file_path = home + '/.flai'
 
             f = QFile(file_path)
-            if not f.open(QIODevice.ReadOnly | QIODevice.Text):
+            if not f.open(QIODevice.OpenModeFlag.ReadOnly | QIODevice.OpenModeFlag.Text):
                 print("Cannot open file:", f.errorString())
             else:
                 raw = f.readAll()
                 doc = QJsonDocument.fromJson(raw, _err := QJsonParseError())
-                if _err.error != QJsonParseError.NoError:
+                if _err.error != QJsonParseError.ParseError.NoError:
                     print("JSON parse error:", _err.errorString())
                 else:
                     obj = doc.object()
@@ -2946,7 +3004,7 @@ TIPS AND TRICKS:
 
     def _get_cli_link(self):
         msg = QtWidgets.QMessageBox(self)
-        msg.setIcon(QtWidgets.QMessageBox.Information)
+        msg.setIcon(ICON_INFORMATION)
         msg.setWindowTitle("Instructions")
         msg.setText(
             "After clicking OK button below, plugin will open file explorer and two tabs.\n\n"
@@ -2954,21 +3012,21 @@ TIPS AND TRICKS:
             "Plugin will also open default folder where CLI can be saved by using system file explorer. Once download is finished you can copy your CLI to this folder."
         )
 
-        # default setting for QMessageBox was buggy, even if user clicked on Close (x) button this line "if ret == QtWidgets.QMessageBox.Ok" was True
+        # default setting for QMessageBox was buggy, even if user clicked on Close (x) button this line "if ret == BTN_OK" was True
         # give it both OK and Cancel...
         msg.setStandardButtons(
-            QtWidgets.QMessageBox.Ok |
-            QtWidgets.QMessageBox.Cancel
+            BTN_OK |
+            BTN_CANCEL
         )
         # but hide the Cancel button so the user only sees OK
-        msg.button(QtWidgets.QMessageBox.Cancel).setVisible(False)
+        msg.button(BTN_CANCEL).setVisible(False)
 
         msg.setFont(self._font_inside_msg_box)
         for btn in msg.buttons():
             btn.setFont(self._font_inside_msg_box)
 
-        ret = msg.exec_()
-        if ret == QtWidgets.QMessageBox.Ok:
+        ret = msg.exec()
+        if ret == BTN_OK:
             # on Windows this should call Explorer, on macOS "open", on Linux "xdg-open"
             QDesktopServices.openUrl(
                 QUrl.fromLocalFile(self._default_cli_dir)
