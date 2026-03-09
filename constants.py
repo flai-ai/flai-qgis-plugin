@@ -8,13 +8,13 @@ OUTPUT_PATH_MANAGER_DEFAULT_VALUE_MESSAGE = "Output paths have been automaticall
 # path related
 MAIN_SAVING_FOLDER_NAME = 'flai-utils'
 
-CLI_FOLDER_NAME = 'cli'
+CLI_FOLDER_NAME                = 'cli'
 CLI_PROCESSED_DATA_FOLDER_NAME = 'outputs'
 
-DATAHUB_FOLDER_NAME = 'datahub'
+DATAHUB_FOLDER_NAME               = 'datahub'
 DATAHUB_DATASET_SAVED_SCHEME_FILE = 'dataset.metadata'
 
-HIDDEN_SETTINGS_FILE_NAME = '.settings.ini'
+HIDDEN_SETTINGS_FILE_NAME    = '.settings.ini'
 HIDDEN_FLAI_CONFIG_FILE_NAME = '.flai'
 
 
@@ -42,35 +42,40 @@ SYSTEM_WINDOWS = 'Windows'
 
 
 # hidden settings related
-HIDDEN_SETTING_FIELD_CLI_PATH = 'cli-path'
-HIDDEN_SETTING_FIELD_MEASUREMENTS = 'measurement-unit'
-HIDDEN_SETTING_FIELD_SHOW_WELCOME_WARNING = 'is-welcome-warning-disabled'
+HIDDEN_SETTING_FIELD_SHOW_WELCOME_WARNING                 = 'is-welcome-warning-disabled'
+
+HIDDEN_SETTING_FIELD_CLI_PATH                             = 'cli-path'
+HIDDEN_SETTING_FIELD_USE_SYSTEM_CLI_PATH_INSTEAD          = 'always-use-lastest-system-cli-path'
+HIDDEN_SETTING_FIELD_SHOW_APT_HINT                        = 'is-apt-cli-hint-disabled'
+
+HIDDEN_SETTING_FIELD_DISPLAY_OSM_FOR_DATAHUB              = 'display-osm-for-datahub'
+
+HIDDEN_SETTING_FIELD_MEASUREMENTS                         = 'measurement-unit'
 HIDDEN_SETTING_FIELD_DISPLAYING_INPUT_AND_OUTPUT_BEHAVIOR = 'displaying-input-and-output-behavior'
-HIDDEN_SETTING_FIELD_DISPLAY_OSM_FOR_DATAHUB = 'display-osm-for-datahub'
-HIDDEN_SETTING_SAVING_PATH_FOR_DATAHUB_OUTPUTS = 'datahub-output-folder-path'
-HIDDEN_SETTING_SAVING_PATH_FOR_CLI_OUTPUTS = 'cli-output-folder-path'
+HIDDEN_SETTING_SAVING_PATH_FOR_DATAHUB_OUTPUTS            = 'datahub-output-folder-path'
+HIDDEN_SETTING_SAVING_PATH_FOR_CLI_OUTPUTS                = 'cli-output-folder-path'
 
 
 # GUI related
-DATA_DISPLAYING_BEHAVIOUR_NON = 'off'
-DATA_DISPLAYING_BEHAVIOUR_ON_FINISH = 'on-finish'
+DATA_DISPLAYING_BEHAVIOUR_NON                   = 'off'
+DATA_DISPLAYING_BEHAVIOUR_ON_FINISH             = 'on-finish'
 DATA_DISPLAYING_BEHAVIOUR_ON_FINISH_ONLY_OUTPUT = 'on-finish-only-output'
-DATA_DISPLAYING_BEHAVIOUR_REALTIME = 'realtime'
+DATA_DISPLAYING_BEHAVIOUR_REALTIME              = 'realtime'
 
 DROPDOWN_MENU_DATA_DISPLAYING_BEHAVIOUR_NON                   = 'Do not display input & output files'
 DROPDOWN_MENU_DATA_DISPLAYING_BEHAVIOUR_ON_FINISH             = 'Display input & output files'
 DROPDOWN_MENU_DATA_DISPLAYING_BEHAVIOUR_ON_FINISH_ONLY_OUTPUT = 'Display only output files (i.e. classification results)'
 DROPDOWN_MENU_DATA_DISPLAYING_BEHAVIOUR_REALTIME              = 'Display input & output files for each successfully processed file'
 
-STATE_DISPLAY_OSM_FOR_DATAHUB_ON = '1'
+STATE_DISPLAY_OSM_FOR_DATAHUB_ON  = '1'
 STATE_DISPLAY_OSM_FOR_DATAHUB_OFF = '0'
 
-TABEL_AVAILABLE_REGIONS_FIRST_COL = "Download?"
-TABEL_AVAILABLE_REGIONS_SECOND_COL = "Dataset name"
-TABEL_AVAILABLE_REGIONS_THIRD_COL = "Time frame"
-TABEL_AVAILABLE_REGIONS_FOURTH_COL = "EPSG"
-TABEL_AVAILABLE_REGIONS_FIFTH_COL = "Density"
-TABEL_AVAILABLE_REGIONS_SIXTH_COL = "Total items (in current view)"
+TABEL_AVAILABLE_REGIONS_FIRST_COL   = "Download?"
+TABEL_AVAILABLE_REGIONS_SECOND_COL  = "Dataset name"
+TABEL_AVAILABLE_REGIONS_THIRD_COL   = "Time frame"
+TABEL_AVAILABLE_REGIONS_FOURTH_COL  = "EPSG"
+TABEL_AVAILABLE_REGIONS_FIFTH_COL   = "Density"
+TABEL_AVAILABLE_REGIONS_SIXTH_COL   = "Total items (in current view)"
 TABEL_AVAILABLE_REGIONS_SEVENTH_COL = "License"
 
 TABEL_AVAILABLE_REGIONS_ITEMS = [

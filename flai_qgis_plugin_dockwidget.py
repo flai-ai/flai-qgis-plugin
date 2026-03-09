@@ -37,7 +37,7 @@ from .compatibily_qt        import *
 
 from qgis.PyQt.QtCore    import Qt, QUrl, pyqtSlot, QTimer, QSettings, QProcess, pyqtSignal, QStandardPaths, QFile, QIODevice, QJsonDocument, QJsonParseError, QSize, QEvent, QObject
 from qgis.PyQt.QtGui     import QDesktopServices, QPixmap, QFont, QColor, QFontMetrics
-from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QCheckBox, QVBoxLayout, QPushButton, QLabel, QMessageBox, QPlainTextEdit, QHBoxLayout, QTableWidgetItem, QWidget, QAbstractItemView, QHeaderView, QSizePolicy, QWIDGETSIZE_MAX
+from qgis.PyQt.QtWidgets import QDialog, QFileDialog, QCheckBox, QVBoxLayout, QPushButton, QLabel, QMessageBox, QPlainTextEdit, QHBoxLayout, QTableWidgetItem, QWidget, QAbstractItemView, QHeaderView, QSizePolicy, QWIDGETSIZE_MAX, QSpacerItem, QSizePolicy
 from qgis.PyQt           import uic, QtWidgets
 from qgis.core           import QgsProject, QgsLayerTreeLayer, QgsVectorLayer, QgsRasterLayer, QgsPointCloudLayer, QgsVectorTileLayer, QgsPointCloudCategory, QgsPointCloudClassifiedRenderer, QgsCoordinateTransform, QgsCoordinateReferenceSystem, QgsLayerTreeGroup, QgsVectorTileBasicRenderer
 
@@ -137,6 +137,10 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         
         self._is_show_welcome_warning_disabled = False
         self._loading_and_setting_show_welcome_warning_from_settings()
+
+        self._is_apt_hint_disabled = False
+        self._use_apt_instead_of_local = False
+        self._load_apt_hint_setting()
 
         self._flai_sdk_executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)     # for async sdk calls (making a bit smoother experience); also do not use ProcessPoolExecutor - can cause problems on Windows
         self._running_flow_process = QProcess()
@@ -752,7 +756,11 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
     def _reset_cli_path(self):
         self._settings.remove(HIDDEN_SETTING_FIELD_CLI_PATH)
+        self._settings.remove(HIDDEN_SETTING_FIELD_USE_SYSTEM_CLI_PATH_INSTEAD)
+        self._settings.remove(HIDDEN_SETTING_FIELD_SHOW_APT_HINT)
         self._settings.sync();              # forces an immediate write
+        self._is_apt_hint_disabled = False
+        self._use_apt_instead_of_local = False
         self._reset_ui_and_variables()
 
 
@@ -2159,11 +2167,15 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
                 f'      {command_with_args[0]}'
             )
 
-        # first line: the program
-        lines = [ f'{program_location} \\' ]
+        # first line -> the program
+        # second line -> command
+        lines = [ 
+            f'{program_location} \\', 
+            f'      {command_with_args[1]} \\' 
+        ]
 
         # every subsequent pair: flag + value
-        for flag, val in zip(command_with_args[1::2], command_with_args[2::2]):
+        for flag, val in zip(command_with_args[2::2], command_with_args[3::2]):
             arg = f'"{val}"' if self._whitespace_regex.search(val) else val    # if value contains any whitespace, wrap it in double-quotes
             lines.append(f'      {flag} {arg} \\')
         
@@ -2208,6 +2220,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         
         command = [
             f'{self._cli_path}',
+            'flow',
             '--flow_id',     str(self.flow_id_with_local_io),
             '--length_unit', self.cmbBx_measurementUnits.currentText(),
         ]
@@ -2750,19 +2763,225 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 ### SETTINGS tab ###
 ####################
 
+    def _is_supported_linux_for_apt_cli(self):
+        """Returns True if running on Ubuntu 20.04/22.04/24.04 or Debian 12."""
+        if self._current_system != SYSTEM_LINUX:
+            return False
+        try:
+            info = {}
+            with open('/etc/os-release', 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if '=' in line:
+                        k, v = line.split('=', 1)
+                        info[k] = v.strip('"')
+            distro_id  = info.get('ID', '').lower()
+            version_id = info.get('VERSION_ID', '')
+            supported  = {
+                'ubuntu': ['20.04', '22.04', '24.04'],
+                'debian': ['12'],
+            }
+            
+            # helper to set current and future system-wide behavior
+            if self._settings.contains(HIDDEN_SETTING_FIELD_USE_SYSTEM_CLI_PATH_INSTEAD):
+                int_value = int(self._settings.value(HIDDEN_SETTING_FIELD_USE_SYSTEM_CLI_PATH_INSTEAD))
+                self._use_apt_instead_of_local = bool(int_value)
+            else:
+                self._settings.setValue(HIDDEN_SETTING_FIELD_USE_SYSTEM_CLI_PATH_INSTEAD, 1)
+                self._use_apt_instead_of_local = True
+                self._settings.sync()
+
+            return version_id in supported.get(distro_id, [])
+        
+        except Exception:
+            return False
+
+
+    def _find_system_cli_executable(self):
+        """Returns path to APT-installed CLI executable, or None if not found."""
+        path = '/opt/flai/current/flai'
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+        return None
+
+
+    def _show_system_cli_located_dialog(self, sys_path):
+        """Show a dialog informing the user a system-wide CLI was found.
+
+        Returns a tuple (choice, remember) where choice is 'proceed', 'local',
+        or 'cancelled', and remember is the checkbox state (bool).
+        """
+        dlg = QDialog(self)
+        dlg.setWindowTitle("System-wide Flai CLI found")
+
+        layout = QVBoxLayout()
+
+        label = QLabel(
+            f"A system-wide Flai CLI installation was found at:\n\n"
+            f"    {sys_path}\n\n"
+            "Would you like to use this installation, or select a local version instead?"
+        )
+        label.setWordWrap(True)
+        label.setFont(self._font_inside_msg_box)
+        layout.addWidget(label)
+
+        layout.addItem(QSpacerItem(0, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        checkbox = QCheckBox("Always use the latest system-wide CLI installation")
+        checkbox.setChecked(self._use_apt_instead_of_local)
+        checkbox.setFont(self._font_inside_msg_box)
+        layout.addWidget(checkbox)
+
+        btn_layout = QHBoxLayout()
+        btn_local   = QPushButton("Select local version")
+        btn_proceed = QPushButton("Proceed")
+        btn_local.setFont(self._font_inside_msg_box)
+        btn_proceed.setFont(self._font_inside_msg_box)
+        btn_layout.addWidget(btn_local)
+        btn_layout.addWidget(btn_proceed)
+        layout.addLayout(btn_layout)
+
+        dlg.setLayout(layout)
+
+        result = ['cancelled']
+
+        def on_local():
+            result[0] = 'local'
+            dlg.accept()
+
+        def on_proceed():
+            result[0] = 'proceed'
+            dlg.accept()
+
+        btn_local.clicked.connect(on_local)
+        btn_proceed.clicked.connect(on_proceed)
+
+        dlg.exec()
+
+        # update status if checkbox changes
+        if self._use_apt_instead_of_local != checkbox.isChecked():
+            self._use_apt_instead_of_local = checkbox.isChecked()
+            self._settings.setValue(HIDDEN_SETTING_FIELD_USE_SYSTEM_CLI_PATH_INSTEAD, checkbox.isChecked())
+            self._settings.sync()
+
+        return result[0], checkbox.isChecked()
+
+    
+    def _show_system_cli_possible_install_dialog(self):
+        dlg = QDialog(self)
+        dlg.setWindowTitle("Flai CLI available via system packages")
+
+        layout = QVBoxLayout()
+
+        label = QLabel(
+            'On your system, the Flai CLI can be installed through your system package '
+            'manager (e.g. APT).<br><br>'
+            'Installing via your package manager ensures automatic updates and '
+            'system-wide availability.<br><br>'
+            'See <a href="https://docs.flai.ai/#/command-line-interface">'
+            'the online documentation</a> for installation instructions.'
+        )
+        label.setOpenExternalLinks(True)
+        label.setWordWrap(True)
+        label.setFont(self._font_inside_msg_box)
+        layout.addWidget(label)
+
+        layout.addItem(QSpacerItem(0, 20, QSizePolicy.Minimum, QSizePolicy.Expanding))
+
+        checkbox = QCheckBox("Do not show again")
+        checkbox.setChecked(self._is_apt_hint_disabled)
+        checkbox.setFont(self._font_inside_msg_box)
+        layout.addWidget(checkbox)
+
+        btn_local = QPushButton("Select local version for now")
+        btn_local.setFont(self._font_inside_msg_box)
+        btn_local.clicked.connect(dlg.accept)
+        layout.addWidget(btn_local)
+
+        dlg.setLayout(layout)
+        status = dlg.exec()
+
+        # overwrite whatever is saved in settings, one time thing
+        if self._is_apt_hint_disabled != checkbox.isChecked():
+            self._is_apt_hint_disabled = checkbox.isChecked()
+            self._settings.setValue(HIDDEN_SETTING_FIELD_SHOW_APT_HINT, checkbox.isChecked())
+            self._settings.sync()
+
+        return status
+
     def _select_cli(self):
-        # get path of user's "installed" CLI
-        if self._settings.contains(HIDDEN_SETTING_FIELD_CLI_PATH):
-            file_path = self._settings.value(HIDDEN_SETTING_FIELD_CLI_PATH)
-        else:
+        file_path = ''
+
+    
+        # Inform users on supported Linux distros that the CLI is available via a system package manager (e.g. APT)
+        if self._is_supported_linux_for_apt_cli():
+            
+            # is it system wide installed
+            sys_path = self._find_system_cli_executable()
+
+            # check if System CLI was removed since last run; clear the flag and fall through
+            if sys_path is None:
+                self._settings.remove(HIDDEN_SETTING_FIELD_USE_SYSTEM_CLI_PATH_INSTEAD)
+
+            # it is true that we could do only
+            #           if self._settings.contains(HIDDEN_SETTING_FIELD_CLI_PATH): 
+            # and so on here, but it would be harder to capture / cement behavior of plugin / ui
+            # that is why it is repeated
+
+            # warn that it is possible to install it system wide
+            if sys_path is None:
+                if self._settings.contains(HIDDEN_SETTING_FIELD_CLI_PATH):        
+                   file_path = self._settings.value(HIDDEN_SETTING_FIELD_CLI_PATH, '') # we do '' just in case
+                
+                if not self._is_apt_hint_disabled:
+                    status = self._show_system_cli_possible_install_dialog()
+
+                    if QDialog.Rejected == status:
+                        return
+
+            # show information window that it can be used 
+            elif sys_path:
+
+                # check if user already checked to use local path by default, then we always use local (not spawning system wide info everytime - anoying otherwise)
+                if not self._use_apt_instead_of_local:
+                    if self._settings.contains(HIDDEN_SETTING_FIELD_CLI_PATH):        
+                        file_path = self._settings.value(HIDDEN_SETTING_FIELD_CLI_PATH, '') # we do '' just in case
+
+                # otherwise show they/them the dialog, where this can be enabled alongside other things
+                else:
+                    choice, remember = self._show_system_cli_located_dialog(sys_path)
+
+                    if choice == 'proceed':
+                        file_path = sys_path
+                    
+                        if remember:
+                            self._settings.setValue(HIDDEN_SETTING_FIELD_USE_SYSTEM_CLI_PATH_INSTEAD, True)
+                     
+                    elif choice == 'local':
+                        # path was already selected before it was installed through APT
+                        if self._settings.contains(HIDDEN_SETTING_FIELD_CLI_PATH) and not self._use_apt_instead_of_local:        
+                            file_path = self._settings.value(HIDDEN_SETTING_FIELD_CLI_PATH, '') # we do '' just in case
+
+
+                    elif choice == 'cancelled':
+                        return
+
+
+        # system path was not found (not supported Linux package manager or it was not locally installed), 
+        # open dialog to find local "install"
+        if file_path == '':
+
             file_path, _ = QFileDialog.getOpenFileName(
                 self,
                 "Select flai-cli executable",
                 self._default_cli_dir,
                 "All Files (*)"
             )
-            if not file_path:
-                return  # user cancelled
+            # if file_path is not set, it will be None
+            
+        if not file_path or file_path == '':
+            return  # user cancelled
+        
 
         version, status = self._get_cli_version(file_path)
 
@@ -2982,8 +3201,8 @@ TIPS AND TRICKS:
             issue = f"Could not find file config.env on path:\n{internal_dir}"
             return tag, issue
 
-        # parsing out BITBUCKET_TAG=
-        pattern = re.compile(r"^BITBUCKET_TAG=(.+)$")
+        # parsing out VERSION_TAG=
+        pattern = re.compile(r"^VERSION_TAG=(.+)$")
         try:
             with open(config_path, "r") as cfg:
                 for line in cfg:
@@ -2996,7 +3215,7 @@ TIPS AND TRICKS:
             return tag, issue
 
         if not tag:
-            issue =  f"No line beginning with BITBUCKET_TAG= found in config.env on path:\n{config_path}"
+            issue =  f"No line beginning with VERSION_TAG= found in config.env on path:\n{config_path}"
             return tag, issue
 
         return tag, issue
@@ -3056,6 +3275,14 @@ TIPS AND TRICKS:
             self._is_show_welcome_warning_disabled = bool(int_value)
         else:
             self._settings.setValue(HIDDEN_SETTING_FIELD_SHOW_WELCOME_WARNING, int(self._is_show_welcome_warning_disabled))
+
+
+    def _load_apt_hint_setting(self):
+        if self._settings.contains(HIDDEN_SETTING_FIELD_SHOW_APT_HINT):
+            int_value = int(self._settings.value(HIDDEN_SETTING_FIELD_SHOW_APT_HINT))
+            self._is_apt_hint_disabled = bool(int_value)
+        else:
+            self._settings.setValue(HIDDEN_SETTING_FIELD_SHOW_APT_HINT, int(self._is_apt_hint_disabled))
 
 
     def _set_saving_location_for_cli(self):
