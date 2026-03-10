@@ -233,7 +233,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
             "",                 # default at index 0
             "meter",
             "foot",
-            "us-foot",
+            "us-survey-foot",
         ])
         self.cmbBx_measurementUnits.currentIndexChanged.connect(self._on_measurement_unit_changed)
         self._on_measurement_unit_changed(self.cmbBx_measurementUnits.currentIndex())
@@ -2183,17 +2183,92 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         lines[-1] = lines[-1].rstrip(" \\")
         shown_command = "\n".join(lines)
 
-        msg = QtWidgets.QMessageBox(self)
-        msg.setIcon(ICON_INFORMATION)
-        msg.setWindowTitle("Command to be executed")
-        msg.setText(shown_command)
-        msg.setStandardButtons(BTN_OK)
+        # fancy QMessageBox
+        dialog = QtWidgets.QDialog(self)
+        dialog.setWindowTitle("Command to be executed")
+        dialog.setModal(True)
 
-        msg.setFont(self._font_inside_msg_box)
-        for btn in msg.buttons():
+        layout = QtWidgets.QVBoxLayout(dialog)
+
+        label = QtWidgets.QLabel("The following command will be executed:")
+        label.setFont(self._font_inside_msg_box)
+        layout.addWidget(label)
+
+        text_edit = QtWidgets.QPlainTextEdit()
+        text_edit.setReadOnly(True)
+        text_edit.setPlainText(shown_command)
+        text_edit.setFont(self._font_inside_msg_box)
+        text_edit.setLineWrapMode(QtWidgets.QPlainTextEdit.NoWrap)
+
+        # we want height to fit all lines, so no vertical scrollbar in normal cases
+        text_edit.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+
+        layout.addWidget(text_edit)
+
+        button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.Ok)
+        button_box.accepted.connect(dialog.accept)
+        for btn in button_box.buttons():
             btn.setFont(self._font_inside_msg_box)
+        layout.addWidget(button_box)
 
-        msg.exec()
+        # max size limited by QGIS main window
+        if self.window():
+            parent_geom = self.window().geometry()
+            max_w = int(parent_geom.width() * 0.9)
+            max_h = int(parent_geom.height() * 0.9)
+        else:
+            screen_geom = QtWidgets.QApplication.primaryScreen().availableGeometry()
+            max_w = int(screen_geom.width() * 0.8)
+            max_h = int(screen_geom.height() * 0.8)
+
+        fm = QFontMetrics(text_edit.font())
+
+        lines = shown_command.splitlines() or [""]
+        longest_line_width = max(fm.horizontalAdvance(line) for line in lines)
+
+        # width: longest line + widget/frame/scrollbar safety padding
+        text_margins = 40
+        desired_text_width = min(max(longest_line_width + text_margins, 500), max_w)
+
+        # apply width first so document layout is stable
+        text_edit.setFixedWidth(desired_text_width)
+
+        # height from number of text blocks (= lines)
+        line_height = fm.lineSpacing()
+        line_count = text_edit.blockCount()
+
+        doc_margin = int(text_edit.document().documentMargin()) * 2
+        frame = text_edit.frameWidth() * 2
+        text_padding = 8
+
+        desired_text_height = (
+            line_count * line_height +
+            doc_margin +
+            frame +
+            text_padding
+        )
+
+        label_h = label.sizeHint().height()
+        buttons_h = button_box.sizeHint().height()
+        layout_spacing = layout.spacing() * 4
+        layout_margins = layout.contentsMargins().top() + layout.contentsMargins().bottom()
+
+        extra_bottom_space = 20
+
+        desired_dialog_height = (
+            desired_text_height +
+            label_h +
+            buttons_h +
+            layout_spacing +
+            layout_margins +
+            extra_bottom_space
+        )
+
+        desired_dialog_width = min(desired_text_width + 30, max_w)
+        desired_dialog_height = min(desired_dialog_height, max_h)
+
+        dialog.resize(desired_dialog_width, desired_dialog_height)
+        dialog.exec()
 
 
     def _get_executable_command(self):
@@ -2909,6 +2984,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
         return status
 
+
     def _select_cli(self):
         file_path = ''
 
@@ -2971,14 +3047,21 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # open dialog to find local "install"
         if file_path == '':
 
-            file_path, _ = QFileDialog.getOpenFileName(
-                self,
-                "Select flai-cli executable",
-                self._default_cli_dir,
-                "All Files (*)"
-            )
-            # if file_path is not set, it will be None
-            
+            # check if local path was already set
+            if self._settings.contains(HIDDEN_SETTING_FIELD_CLI_PATH):
+                file_path = self._settings.value(HIDDEN_SETTING_FIELD_CLI_PATH, '')
+
+            # otherwise select it
+            else:
+                file_path, _ = QFileDialog.getOpenFileName(
+                    self,
+                    "Select flai-cli executable",
+                    self._default_cli_dir,
+                    "All Files (*)"
+                )
+                # if file_path is not set, it will be None
+        
+
         if not file_path or file_path == '':
             return  # user cancelled
         
