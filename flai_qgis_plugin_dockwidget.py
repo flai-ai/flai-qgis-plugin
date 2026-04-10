@@ -22,7 +22,7 @@
  ***************************************************************************/
 """
 
-import os, time, re, platform, sys, importlib, threading, requests, html, concurrent.futures, json
+import os, time, re, platform, sys, importlib, threading, requests, html, concurrent.futures, json, subprocess
 import webbrowser   # python native lib for browser opening links, could use also QDesktopServices.openUrl(QUrl("https://www.example.com"))
 from functools          import partial
 from datetime           import datetime
@@ -134,6 +134,7 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # we need to save this variables only if we are on Windows
         self._windows_flai_access_token = ''
         self._windows_flai_host         = ''
+        self._cli_binary_type           = 'unknown'  # 'windows', 'linux', or 'unknown' — detected from file magic bytes
         
         self._is_show_welcome_warning_disabled = False
         self._loading_and_setting_show_welcome_warning_from_settings()
@@ -2158,8 +2159,8 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # if value contains any whitespace, wrap it in double-quotes
         program_location = f'"{command_with_args[0]}"' if self._whitespace_regex.search(command_with_args[0]) else command_with_args[0]
         
-        # windows specific command
-        if self._current_system == SYSTEM_WINDOWS:
+        # windows specific command (only when running Linux CLI via WSL)
+        if self._current_system == SYSTEM_WINDOWS and self._cli_binary_type == 'linux':
             program_location = (
                 'wsl \\\n'                                      +
                 f'      {self._windows_flai_access_token} \\\n' +
@@ -2322,8 +2323,8 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         wrtr_cmd, val = local_output[-1]
         command.extend([f'--{wrtr_cmd}', f'{val}'])
 
-        # on windows paths paths will not be ok for wsl, we do a little bit of parsing
-        if self._current_system == SYSTEM_WINDOWS:
+        # on windows paths will not be ok for wsl, we do a little bit of parsing (only needed for Linux CLI via WSL)
+        if self._current_system == SYSTEM_WINDOWS and self._cli_binary_type == 'linux':
             command = [self._parse_windows_path(arg) for arg in command]
 
         return command, current_datetime, local_input_type_and_files, local_output_type_and_folder
@@ -2433,11 +2434,11 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 
             self._create_folders_from_args(self._executing_command)
 
-            # setting up windows specific command
-            if self._current_system == SYSTEM_WINDOWS:
+            # setting up windows specific command (only when running Linux CLI via WSL)
+            if self._current_system == SYSTEM_WINDOWS and self._cli_binary_type == 'linux':
                 self._executing_command = [
-                    'wsl', 
-                    self._windows_flai_access_token, 
+                    'wsl',
+                    self._windows_flai_access_token,
                     self._windows_flai_host
                 ] + self._executing_command
 
@@ -2838,6 +2839,34 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
 ### SETTINGS tab ###
 ####################
 
+    def _detect_cli_binary_type(self, path):
+        """Returns 'windows', 'linux', or 'unknown' based on file magic bytes."""
+        try:
+            with open(path, 'rb') as f:
+                magic = f.read(4)
+                if magic[:2] == b'MZ':
+                    return 'windows'
+                elif magic == b'\x7fELF':
+                    return 'linux'
+        except (OSError, IOError):
+            pass
+        return 'unknown'
+
+
+    def _is_wsl_available(self):
+        """Returns True if WSL can actually execute a command on this Windows machine."""
+        try:
+            result = subprocess.run(
+                ['wsl', 'echo', 'ok'],
+                capture_output=True,
+                timeout=3,
+                creationflags=getattr(subprocess, 'CREATE_NO_WINDOW', 0)
+            )
+            return result.returncode == 0
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+            return False
+
+
     def _is_supported_linux_for_apt_cli(self):
         """Returns True if running on Ubuntu 20.04/22.04/24.04 or Debian 12."""
         if self._current_system != SYSTEM_LINUX:
@@ -3086,6 +3115,26 @@ class FlaiQgisPluginDockWidget(QtWidgets.QDockWidget, FORM_CLASS):
         # store in instance
         self._cli_path = file_path
         self._cli_version = version
+        self._cli_binary_type = self._detect_cli_binary_type(file_path)
+
+        # on Windows, if user selected a Linux CLI, verify WSL is available
+        if self._current_system == SYSTEM_WINDOWS and self._cli_binary_type == 'linux':
+            if not self._is_wsl_available():
+                msg = QtWidgets.QMessageBox(self)
+                msg.setIcon(ICON_WARNING)
+                msg.setWindowTitle("WSL not detected")
+                msg.setText(
+                    'The selected CLI is a Linux executable which requires WSL (Windows Subsystem for Linux) to run.\n\n'
+                    'WSL was not detected on your system. Please install WSL or select a Windows-native CLI instead.'
+                )
+                msg.setStandardButtons(BTN_OK)
+
+                msg.setFont(self._font_inside_msg_box)
+                for btn in msg.buttons():
+                    btn.setFont(self._font_inside_msg_box)
+
+                msg.exec()
+                return
 
         self._settings.setValue(HIDDEN_SETTING_FIELD_CLI_PATH, self._cli_path)
 
@@ -3157,8 +3206,8 @@ TIPS AND TRICKS:
             self.show_generic_sdk_warning(message=GENERAL_ERROR + f"{str(e)}")
             self._org_name = 'GENERAL_ERROR ENCOUNTERED'
         
-        # parsing data from .flai on user's home path, since WSL cannot access it
-        if self._current_system == SYSTEM_WINDOWS:
+        # parsing data from .flai on user's home path, since WSL cannot access it (only needed for Linux CLI via WSL)
+        if self._current_system == SYSTEM_WINDOWS and self._cli_binary_type == 'linux':
             home = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.HomeLocation)
             file_path = home + '/.flai'
 
